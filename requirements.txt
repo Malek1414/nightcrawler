@@ -1,0 +1,10 @@
+# --- Kern ---
+python-dotenv>=1.0              # .env laden
+openai>=1.40                    # LLM und Tool-Calling
+httpx>=0.27                     # HTTP für Suche und Seitenabruf
+
+# --- Optional, degradiert freundlich ---
+yt-dlp>=2025.1.15               # YouTube-Transkripte. Fehlt es, sagt der Agent das
+
+# --- Entwicklung und Tests ---
+pytest>=8.0
