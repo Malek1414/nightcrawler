@@ -68,7 +68,7 @@ def load_keys():
                     m = re.match(r"\s*(?:export\s+)?([A-Z_]+)\s*=\s*(.*)", line)
                     if not m or m.group(1) not in KEY_NAMES or m.group(1) in keys:
                         continue
-                    val = m.group(2).split(" #")[0].strip().strip("'\"")
+                    val = re.split(r"(?:^|\s)#", m.group(2))[0].strip().strip("'\"")
                     if val:
                         keys[m.group(1)] = val
         except OSError:
