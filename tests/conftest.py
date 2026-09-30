@@ -1,7 +1,7 @@
-"""Gemeinsame Test-Fixtures.
+"""Shared test fixtures.
 
-Alle Tests laufen ohne Netz und ohne API-Key. Was nach draußen gehen würde,
-läuft im Mock-Modus oder wird gar nicht erst aufgerufen.
+All tests run without network and without an API key. Anything that would go
+out runs in mock mode, against a fake client, or is never called.
 """
 
 from __future__ import annotations
@@ -20,18 +20,22 @@ from core.config import Config  # noqa: E402
 
 def make_config(**overrides) -> Config:
     base = dict(
-        openai_api_key="",
         agent_model="test-model",
+        effort="high",
         mock_llm=True,
         max_rounds=5,
         owner_name="",
-        agent_name="Recherche-Agent",
-        answer_language="Deutsch",
-        answer_style="kompakt",
+        agent_name="Nightcrawler",
+        answer_language="English",
+        answer_style="concise",
         tavily_api_key="",
+        min_pages=6,
+        min_domains=4,
+        profile_path=None,
+        location_source="profile",
         notes_dir=None,
-        research_folder="Recherchen",
-        target_group_note="Zielgruppe.md",
+        research_folder="Research",
+        target_group_note="target-audience.md",
         timezone="Europe/Berlin",
         log_level="INFO",
     )

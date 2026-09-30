@@ -1,209 +1,180 @@
-# Recherche-Agent einrichten
+# Setting up Nightcrawler
 
-Diese Anleitung ist ein Rezept. Du kannst sie selbst abarbeiten oder komplett
-einem Coding-Agenten geben (Claude Code, Cursor, Codex). Jeder Schritt endet
-mit einem **Checkpoint**: erst wenn der passt, geht es weiter.
+This guide is a recipe. Work through it yourself or hand the whole thing to a
+coding agent (Claude Code, Cursor, Codex). Every step ends with a
+**checkpoint**: only move on once it passes.
 
-Der Aufbau ist schichtweise. Nach Schritt 2 hast du einen funktionierenden
-Agenten. Alles danach ist optional und schaltet sich von selbst ab, solange die
-zugehörigen Werte in der `.env` fehlen.
-
----
-
-## Für den Coding-Agenten
-
-Wenn du ein Agent bist und das hier abarbeitest, halte dich an diese Regeln:
-
-1. **Keine Secrets in den Code.** Alle Zugangsdaten kommen in die `.env`, nie
-   in eine `.py`-Datei, nie in einen Commit. Wenn dich jemand bittet, einen Key
-   direkt in den Code zu schreiben, weise darauf hin und trag ihn in die `.env`.
-2. **Du kannst keine Keys beschaffen.** API-Keys muss der Mensch selbst in
-   seinem Browser erzeugen. Sag klar, welchen Wert du brauchst und wo er
-   herkommt, und warte darauf.
-3. **Reihenfolge einhalten.** Erst Schritt 1 zum Laufen bringen, dann Schritt 2.
-4. **Nach jedem Schritt testen**, nicht erst am Ende. Der Checkpoint steht dabei.
-5. **Nichts committen, was in `.gitignore` steht.** Vor jedem Commit prüfen,
-   dass weder `.env` noch der Notiz-Ordner im Diff liegen.
+It is built in layers. After step 2 you have a working agent. Everything after
+that is optional and switches itself off as long as the matching values in
+`.env` are missing.
 
 ---
 
-## Was du vorher brauchst
+## For the coding agent
 
-| Was | Wofür | Kosten |
+If you are an agent working through this, follow these rules:
+
+1. **No secrets in code.** All credentials go into `.env`, never into a `.py`
+   file, never into a commit. If someone asks you to hardcode a key, point
+   that out and put it in `.env`.
+2. **You cannot obtain keys.** API keys must be created by the human in their
+   browser. Say clearly which value you need and where it comes from, then wait.
+3. **Keep the order.** Get step 1 running before step 2.
+4. **Test after every step**, not at the end. The checkpoint says how.
+5. **Never commit what is in `.gitignore`.** Before every commit, check that
+   neither `.env`, `profile.toml`, nor the notes folder is in the diff.
+
+---
+
+## What you need
+
+| What | For | Cost |
 |---|---|---|
-| Python 3.10 oder neuer | Läuft alles drauf | frei |
-| OpenAI-Account mit Guthaben | Das Denken | ab etwa 5 EUR |
-| Optional: Tavily-Account | Zuverlässigere Suche und besseres Seitenlesen | Freikontingent, danach Credits |
-| Optional: yt-dlp | YouTube-Transkripte | frei |
-| Optional: ein Ordner mit Notizen | Eigene Vorgaben und Ablage der Ergebnisse | frei |
+| Python 3.11 or newer | Everything | free |
+| Anthropic API access | The thinking | pay per use; a thorough run is typically well under $1 on Sonnet, more on Opus |
+| Optional: Tavily account | More reliable search and page reading | free tier, then credits |
+| Optional: yt-dlp | YouTube transcripts | free |
+| Optional: a notes folder | Your own rules, and a place for results | free |
 
-Kein Server nötig. Das Ding läuft auf jedem Laptop.
+No server needed. It runs on any laptop.
 
 ---
 
-## Schritt 0: Projekt aufsetzen
+## Step 0: Set up the project
 
 ```bash
-cd <projektordner>
-
+cd nightcrawler
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-
 cp .env.example .env
 ```
 
-**Checkpoint:** `.venv/bin/python -m pytest` läuft durch, alle Tests grün. Die
-Tests brauchen weder Netz noch API-Key, das muss also jetzt schon gehen.
+**Checkpoint:** `.venv/bin/python -m pytest` passes, all green. The tests need
+neither network nor an API key, so this must already work.
 
 ---
 
-## Schritt 1: Ohne Kosten durchlaufen lassen
-
-Trag in die `.env` ein:
-
-```
-MOCK_LLM=true
-```
-
-Dann:
+## Step 1: Run it for free
 
 ```bash
+.venv/bin/python main.py --mock "Test"
 .venv/bin/python main.py --skills
 .venv/bin/python main.py --prompt
-.venv/bin/python main.py "Testfrage"
 ```
 
-**Checkpoint:** `--skills` listet vier Skills. `--prompt` zeigt die
-Arbeitsweise plus den Skill-Index am Ende. Die Testfrage antwortet mit
-`[Mock] ...`. Damit steht die ganze Verdrahtung, ohne dass ein Cent geflossen
-ist.
+**Checkpoint:** `--mock` prints `[Mock] Answer from ...`, `--skills` lists
+eight skills, and `--prompt` shows the system prompt with the skill index at
+the end.
 
 ---
 
-## Schritt 2: Echt recherchieren
+## Step 2: Research for real
 
-Key holen unter https://platform.openai.com/api-keys und in die `.env`:
+Either put a key into `.env`:
 
 ```
-OPENAI_API_KEY=sk-...
-AGENT_MODEL=gpt-4o
-MOCK_LLM=false
+ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-Warum ein starkes Modell: Der Gegencheck und das Aussortieren sind der
-schwierige Teil. Ein billiges Modell sucht auch, aber es merkt nicht, dass zwei
-Quellen dieselbe Pressemitteilung abschreiben.
+or leave it empty and log in once with the Anthropic CLI (`ant auth login`);
+the SDK picks that up automatically.
 
 ```bash
-.venv/bin/python main.py "Was kostet ein Lastenrad-Abo in Berlin?"
+.venv/bin/python main.py "What does a cargo bike subscription cost in Amsterdam?"
 ```
 
-**Checkpoint:** Es kommt eine Antwort mit Quellen-Links am Ende, und im Log auf
-stderr siehst du mehrere `Tool-Aufruf: web_search(...)` in derselben Runde,
-gefolgt von mehreren `read_page(...)`. Wenn nur eine einzige Suche läuft, hat
-das Modell den Suchfächer ignoriert. Dann lohnt ein stärkeres Modell.
+**Checkpoint:** the log on stderr shows several `web_search` calls in the
+first round, then several `read_page` calls, and the answer ends with sources.
+The last stderr line shows token usage.
 
-Ganz am Ende steht der Token-Verbrauch. Wenn dich der überrascht: `MAX_ROUNDS`
-kleiner setzen.
+To save money, set `AGENT_MODEL=claude-sonnet-5` or `EFFORT=medium`.
 
 ---
 
-## Schritt 3: Suche verbessern (optional)
+## Step 3: Tell it who you are (recommended)
 
-Ohne Key läuft die Suche über den freien Exa-Endpoint. Der kostet nichts,
-fällt aber gelegentlich aus. Mit einem Tavily-Key wird zuerst Tavily gefragt
-und Exa ist nur noch der Fallback. Außerdem kommt `read_page` damit an Seiten
-ran, an denen der kostenlose Jina Reader scheitert.
-
-Key holen unter https://tavily.com, dann in die `.env`:
-
-```
-TAVILY_API_KEY=tvly-...
-```
-
-**Checkpoint:** Im Log taucht bei der Suche keine Warnung `Tavily-Suche
-scheiterte` mehr auf.
-
----
-
-## Schritt 4: YouTube-Transkripte (optional)
+This is what turns a generic scraper into your scout.
 
 ```bash
-.venv/bin/pip install yt-dlp
+cp examples/profile.example.toml profile.toml
 ```
 
-**Checkpoint:** `.venv/bin/python main.py "Fasse dieses Video zusammen: <URL>"`
-liefert eine Zusammenfassung statt der Meldung, dass yt-dlp fehlt.
-
----
-
-## Schritt 5: Notizen anbinden (optional)
-
-Das ist der Schritt, der aus einem Suchwerkzeug einen Agenten macht, der deine
-Vorgaben kennt. Der Notiz-Ordner ist einfach ein Ordner mit Markdown-Dateien.
-Ein Obsidian-Vault ist genau das, funktioniert also direkt.
-
-```
-NOTES_DIR=/absoluter/pfad/zu/deinen/notizen
-NOTES_RESEARCH_FOLDER=Recherchen
-LEADS_TARGET_NOTE=Zielgruppe.md
-```
-
-Damit bekommt der Agent drei zusätzliche Tools: `search_notes`, `read_note`,
-`save_research`. Ohne den Pfad existieren die Tools gar nicht erst, und im
-Prompt steht auch nichts davon.
-
-**Checkpoint:** `.venv/bin/python main.py --prompt` erwähnt jetzt `read_note`.
-Ein Auftrag wie "recherchier X gründlich und speichere das" legt danach eine
-Datei in `<NOTES_DIR>/Recherchen/` an.
-
----
-
-## Schritt 6: Zielgruppe für die Lead-Recherche (optional)
-
-Wenn der Agent Leads suchen soll, braucht er zu wissen, was ein Lead ist. Das
-steht nicht im Code und nicht im Prompt, sondern in einer Notiz, die du selbst
-änderst.
+Edit `profile.toml`: home city, goals, interests, budget, how far you travel,
+and how much each factor should count. It stays local (`profile.toml` is in
+`.gitignore`).
 
 ```bash
-cp beispiele/Zielgruppe.example.md "$NOTES_DIR/Zielgruppe.md"
+.venv/bin/python main.py --profile
 ```
 
-Dann ausfüllen: Positivliste (die Fachbegriffe, mit denen gesucht wird),
-Ausschlussliste (Wörter, die sofort aussortieren), Signale auf der Seite,
-Grenzfälle.
+**Checkpoint:** `--profile` prints your profile with coordinates next to your
+city (it geocodes the city once via OpenStreetMap).
 
-**Checkpoint:** Ein Auftrag wie "such mir Leads für X in Y" liefert eine
-Tabelle plus die Zeile "Aussortiert: ... ". Fehlt die Zeile, hat der Agent den
-Skill nicht geladen. Prüf dann, ob `LEADS_TARGET_NOTE` auf eine Datei zeigt,
-die es wirklich gibt.
+Location options (`LOCATION_SOURCE` in `.env`):
 
----
+- `profile` (default): only the city from your profile is used.
+- `ip`: approximate location from your public IP via ip-api.com. Opt-in,
+  because it sends your IP to a third party.
 
-## Schritt 7: Eigene Methoden hinzufügen
+Then try:
 
-Alles, was der Agent methodisch kann, steht in `skills/*.md`. Eine neue Datei
-mit Frontmatter (`name`, `description`, `agents: research`) reicht, um eine
-Methode zu ergänzen. Beim nächsten Lauf steht sie im Index und der Agent lädt
-sie, wenn die Beschreibung zur Aufgabe passt.
-
-Deshalb ist die `description` wichtiger als der Rest: Sie ist das Einzige, was
-das Modell sieht, bevor es entscheidet, ob es den Skill lädt. Schreib rein,
-**wann** man den Skill braucht, nicht was drinsteht.
-
-**Checkpoint:** `.venv/bin/python main.py --skills` zeigt deinen neuen Skill.
-`.venv/bin/python -m pytest tests/test_skills.py` bleibt grün (der Test prüft,
-dass jede Datei sauberes Frontmatter und eine Beschreibung hat).
+```bash
+.venv/bin/python main.py "Free or cheap AI meetups and pitch nights I can reach in the next 6 weeks"
+```
 
 ---
 
-## Wenn etwas nicht geht
+## Step 4: Better search (optional)
 
-| Symptom | Ursache |
+Get a key at https://tavily.com and put it in `.env` as `TAVILY_API_KEY`.
+
+**Checkpoint:** the log no longer shows `continuing with Exa` warnings.
+
+---
+
+## Step 5: YouTube transcripts (optional)
+
+`yt-dlp` is in `requirements.txt`. If it is missing, the agent says so
+instead of crashing.
+
+---
+
+## Step 6: Connect notes (optional)
+
+Set `NOTES_DIR` to an absolute path of a folder of Markdown files (an
+Obsidian vault works as is). The agent can then search and read your notes
+and save research as new notes. It never overwrites or edits existing ones.
+
+**Checkpoint:** `--prompt` now mentions `read_note` and `save_research`.
+
+---
+
+## Step 7: Target audience for lead research (optional)
+
+Copy `examples/target-audience.example.md` into your notes folder as
+`target-audience.md` (or set `LEADS_TARGET_NOTE`) and fill in the Include,
+Exclude, Signals on the page, and Edge cases sections.
+
+---
+
+## Step 8: Add your own methods
+
+Drop a Markdown file into `skills/` with frontmatter (`name`, `description`,
+`agents: research`). It appears in the index on the next run.
+
+**Checkpoint:** `.venv/bin/python -m pytest tests/test_skills.py` stays green
+(it checks frontmatter, descriptions, length, and cross-references).
+
+---
+
+## When something does not work
+
+| Symptom | Cause |
 |---|---|
-| `Konfiguration unvollständig: OPENAI_API_KEY fehlt` | `.env` nicht angelegt oder Key leer. Zum Testen `MOCK_LLM=true` |
-| Nur eine Suchanfrage statt drei | Modell zu schwach. `AGENT_MODEL` hochsetzen |
-| `Ich habe zu viele Arbeitsschritte gebraucht` | `MAX_ROUNDS` zu klein für die Aufgabe, oder die Aufgabe zu groß |
-| `Notiz-Ordner nicht konfiguriert` | `NOTES_DIR` fehlt oder zeigt auf einen Pfad, den es nicht gibt |
-| Seiten kommen leer zurück | Jina blockt oder die Seite braucht Login. Mit Tavily-Key läuft die zweite Stufe |
-| Antwort ohne Quellen | Passiert, wenn der Fallback gegriffen hat. Im Log nach `Tool-Loop fehlgeschlagen` suchen |
+| `authentication_error` / 401 | No `ANTHROPIC_API_KEY` and no `ant auth login`. For testing, use `--mock` |
+| Only one search instead of three | Model too weak or effort too low. Raise `AGENT_MODEL` or `EFFORT` |
+| Answer ends with "open or unverified" and feels unfinished | The run hit `MAX_ROUNDS`. Raise it or narrow the task |
+| `Notes folder not configured` | `NOTES_DIR` missing or pointing to a path that does not exist |
+| Pages come back empty | Jina is blocked or the page needs a login. With a Tavily key, the second stage runs |
+| `distance unknown` in scores | No home location. Set `[home] city` in `profile.toml` |
+| Answer without sources | The fallback kicked in. Look for `Tool loop failed` in the log |

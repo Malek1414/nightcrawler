@@ -1,42 +1,42 @@
 ---
 name: deep-research
-description: Gründliche mehrstufige Recherche mit Quellen-Querprüfung, für wichtige Fragen, Referate und Entscheidungen
+description: Thorough multi-stage research with cross-checked sources, for important questions, presentations, and decisions.
 agents: research
-quelle: adaptiert aus daymade/claude-code-skills deep-research (MIT)
+source: adapted from daymade/claude-code-skills deep-research (MIT)
 ---
 # Deep Research
 
-## 0. Sofort anfangen
-- Keine Rückfrage, keine Auftragsbestätigung, kein "soll ich?". Unklarheiten werden als Annahme notiert und in der Antwort genannt.
-- Der Gegencheck (Abschnitt 4) ersetzt die Rückfrage: lieber doppelt prüfen als einmal nachfragen.
+## 0. Start immediately
+- No clarifying questions, no confirming the assignment, no "should I?". Note ambiguities as assumptions and state them in the answer.
+- The cross-check (section 4) replaces the clarifying question: better to check twice than to ask once.
 
-## 1. Frage zerlegen
-- Zerlege den Auftrag in 3 bis 5 unabhängige Teilfragen (Was genau? Wer sagt was? Was sind Zahlen und Fakten? Was ist umstritten?).
-- Pro Teilfrage einen Suchfächer aus 3 Anfragen, alle im selben Zug abschicken (sie laufen gleichzeitig): wörtlicher Begriff, Synonym oder Fachbegriff, englische Variante.
-- Trefferlisten vergleichen, bevor du liest: Welche Formulierung bringt frische, offizielle, konkrete Quellen? Nur diese Spur wird verfeinert, die schwachen Formulierungen werden nicht wiederholt.
-- Markiere je Teilfrage: DEEP (Volltext mit read_page lesen) oder SCAN (Suchtreffer reichen).
+## 1. Break down the question
+- Split the task into 3 to 5 independent sub-questions (What exactly? Who says what? What are the numbers and facts? What is disputed?).
+- For each sub-question, a search fan of 3 queries, all sent in the same turn (they run in parallel): the literal term, a synonym or technical term, and a variant in another language (for example the local language of the topic, or English).
+- Compare the result lists before you read: which phrasing brings fresh, official, concrete sources? Refine only that lead; don't repeat the weak phrasings.
+- Mark each sub-question: DEEP (read the full text with read_page) or SCAN (search results are enough).
 
-## 2. Quellen sammeln (Register führen)
-- Ziel: mindestens 6 bis 8 unterschiedliche Quellen aus mindestens 4 verschiedenen Domains, davon mindestens 6 wirklich mit read_page gelesen.
-- Auch read_page mehrere pro Zug aufrufen, nicht eine Seite nach der anderen.
-- Keine einzelne Quelle darf den Großteil der Belege stellen.
-- Jede Quelle einordnen: Offiziell, Wissenschaft, Journalismus, Community. Und das Publikationsdatum notieren.
-- Alte Quellen abwerten. Nenne in der Antwort das Stand-Datum ("Stand: TT.MM.JJJJ").
+## 2. Collect sources (keep a register)
+- Goal: at least 6 to 8 distinct sources from at least 4 different domains, of which at least 6 are actually read with read_page.
+- Call read_page several times per turn too, not one page after another.
+- No single source may supply most of the evidence.
+- Classify each source: official, academic, journalism, community. And note the publication date.
+- Downgrade old sources. State the as-of date in the answer ("As of: YYYY-MM-DD").
 
-## 3. Belegen
-- Jede Faktenaussage bekommt eine Quellen-Nummer [1], [2], und so weiter.
-- Was du nicht belegen kannst: als [unbestätigt] kennzeichnen, nicht weglassen und niemals erfinden.
-- NIE URLs erfinden. Nur Links nennen, die du in dieser Recherche wirklich geöffnet oder in Treffern gesehen hast.
+## 3. Cite
+- Every factual claim gets a source number [1], [2], and so on.
+- What you cannot support: mark as [unverified], don't drop it and never invent anything.
+- NEVER invent URLs. Only give links you actually opened or saw in results during this research.
 
-## 4. Gegencheck (Pflicht vor der Antwort)
-- Jede Zahl, jedes Datum, jeder Preis, jeder Termin und jeder Name wird gegen eine ZWEITE, unabhängige Quelle geprüft: andere Domain, nicht dieselbe Pressemitteilung abgeschrieben.
-- Widersprechen sich zwei Quellen: beide Werte mit Quelle nennen, nicht selbst einen auswählen.
-- Formuliere die Gegenthese und suche einmal gezielt danach ("Kritik an X", "X widerlegt").
-- Aussagen, die nur an EINER Quelle hängen: zweite Quelle suchen oder als [unbestätigt] markieren.
-- Prüfe: Ist eine wichtige Perspektive (offizielle Stelle, Betroffene, Fachleute) gar nicht vertreten?
-- Abbruchkriterium: erst aufhören, wenn eine weitere Runde nur noch Bekanntes bringt.
+## 4. Cross-check (mandatory before answering)
+- Every number, date, price, deadline, and name is checked against a SECOND, independent source: a different domain, not a copy of the same press release.
+- If two sources contradict each other: give both values with their source, don't pick one yourself.
+- Formulate the counter-thesis and search for it once, specifically ("criticism of X", "X debunked").
+- Claims that rest on only ONE source: find a second source or mark them as [unverified].
+- Check: is an important perspective (official body, those affected, experts) missing entirely?
+- Stopping criterion: stop only when another round brings nothing new.
 
-## 5. Antwortformat
-- Kernergebnis zuerst (2 bis 3 Sätze), dann Details in kurzen Absätzen.
-- Nummerierte Quellenliste ans Ende, mit Datum.
-- Bei save_research: vollständige Notiz mit allen Quellen ablegen, in der Antwort nur die Kurzfassung plus Hinweis auf die Notiz.
+## 5. Answer format
+- Key finding first (2 to 3 sentences), then details in short paragraphs.
+- Numbered source list at the end, with dates.
+- With save_research: store the full note with all sources, and give only the summary in the answer plus a pointer to the note.

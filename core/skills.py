@@ -1,12 +1,13 @@
-"""Skills: nachladbare Anleitungen für den Agent.
+"""Skills: instructions the agent loads on demand.
 
-Jede Datei in skills/ ist ein Skill: Markdown mit Frontmatter (name,
-description, agents). Nach dem Prinzip der Anthropic Agent Skills bekommt der
-Agent im System-Prompt nur den Index (Name plus Einzeiler); den vollen Inhalt
-lädt er bei Bedarf selbst über das read_skill-Tool. So bleibt der Prompt klein,
-egal wie viele Skills dazukommen, und das Modell liest nur, was zur Aufgabe passt.
+Every file in skills/ is a skill: Markdown with frontmatter (name,
+description, agents). Following the Anthropic Agent Skills principle, the
+system prompt carries only the index (name plus one line); the agent loads the
+full text itself through the read_skill tool when a task calls for it. The
+prompt stays small no matter how many skills exist, and the model reads only
+what fits the task.
 
-Neuen Skill hinzufügen heißt: eine .md-Datei nach dem Muster ablegen. Kein Code.
+Adding a skill means dropping a .md file into skills/. No code.
 """
 
 from __future__ import annotations
@@ -29,7 +30,7 @@ def _parse(path: Path) -> dict | None:
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError:
-        logger.exception("Skill nicht lesbar: %s", path)
+        logger.exception("Skill not readable: %s", path)
         return None
     m = _FRONTMATTER_RE.match(text)
     if not m:
@@ -43,7 +44,7 @@ def _parse(path: Path) -> dict | None:
     return {
         "name": meta.get("name") or path.stem,
         "description": meta.get("description", ""),
-        "agents": agents,          # leer = Skill steht allen Agents zur Verfügung
+        "agents": agents,          # empty = available to every agent
         "body": m.group(2).strip(),
     }
 
@@ -64,14 +65,14 @@ def for_agent(agent: str) -> list[dict]:
 
 
 def index_block(agent: str) -> str:
-    """Skill-Index für den System-Prompt (nur Name und Beschreibung)."""
+    """Skill index for the system prompt (name and description only)."""
     entries = for_agent(agent)
     if not entries:
         return ""
     lines = [
         "",
-        "Skills (ausführliche Anleitungen, ladbar über das read_skill-Tool).",
-        "Passt ein Skill zur Aufgabe, lade ihn ZUERST und arbeite dann danach:",
+        "Skills (detailed instructions, loadable with the read_skill tool).",
+        "If a skill fits the task, load it FIRST and then work by it:",
     ]
     lines += [f"- {s['name']}: {s['description']}" for s in entries]
     return "\n" + "\n".join(lines)
@@ -82,15 +83,15 @@ def read_skill(name: str) -> str:
     for s in load_all():
         if s["name"].lower() == wanted:
             return s["body"][:MAX_SKILL_CHARS]
-    known = ", ".join(s["name"] for s in load_all()) or "keine"
-    return f"Skill '{name}' gibt es nicht. Vorhanden: {known}"
+    known = ", ".join(s["name"] for s in load_all()) or "none"
+    return f"Skill '{name}' does not exist. Available: {known}"
 
 
 def tool_spec() -> dict:
     return tool(
         "read_skill",
-        "Einen Skill (ausführliche Anleitung) laden. Nutze das, BEVOR du eine "
-        "Aufgabe aus dem Gebiet eines Skills angehst.",
-        {"name": {"type": "string", "description": "Skill-Name aus der Liste im Prompt"}},
+        "Load a skill (detailed instructions). Use this BEFORE starting a task "
+        "that falls in a skill's area.",
+        {"name": {"type": "string", "description": "Skill name from the list in the prompt"}},
         required=["name"],
     )

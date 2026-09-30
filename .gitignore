@@ -9,4 +9,8 @@ __pycache__/
 .pytest_cache/
 .DS_Store
 data/
-notizen/
+notes/
+
+# Personal profile (home, budget, goals)
+profile.toml
+runs/

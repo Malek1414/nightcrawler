@@ -1,8 +1,8 @@
-"""Fallback-Websuche über die eingebaute Websuche des Modells (Responses API).
+"""Fallback: Claude's server-side web search.
 
-Nur als Notausgang gedacht: Wenn der Tool-Loop komplett scheitert (Netzfehler,
-kaputte Antwort, Rate-Limit), bekommt der Nutzer wenigstens eine Antwort mit
-Quellen statt eines Tracebacks. Die eigentliche Arbeit macht agent.py.
+Only an emergency exit: if the tool loop fails completely (network error,
+broken reply, rate limit), the user still gets an answer with sources instead
+of a traceback. The real work happens in agent.py.
 """
 
 from __future__ import annotations
@@ -15,30 +15,28 @@ from core.llm import get_client, record_usage
 logger = logging.getLogger(__name__)
 
 _INSTRUCTIONS = (
-    "Du bist ein Recherche-Assistent. Beantworte die Frage aktuell und präzise. "
-    "Nenne am Ende die wichtigsten Quellen als Links (max. 5). Antworte kompakt."
+    "You are a research assistant. Answer the question with current, precise "
+    "information. End with the most important sources as links (max. 5). Be concise."
 )
 
 
 def search(config: Config, query: str) -> str:
     if config.mock_llm:
-        return f"[Mock] Websuche zu: {query}"
+        return f"[Mock] Web search for: {query}"
 
-    client = get_client(config)
-    last_error: Exception | None = None
-    # Tool-Name variiert je nach API-Version, beide probieren.
-    for tool_type in ("web_search", "web_search_preview"):
-        try:
-            response = client.responses.create(
-                model=config.agent_model,
-                tools=[{"type": tool_type}],
-                instructions=_INSTRUCTIONS,
-                input=query,
-            )
-            record_usage(config, "research-fallback", config.agent_model,
-                         getattr(response, "usage", None))
-            return response.output_text.strip()
-        except Exception as e:
-            last_error = e
-            logger.warning("Websuche mit tool '%s' fehlgeschlagen: %s", tool_type, e)
-    raise RuntimeError(f"Websuche fehlgeschlagen: {last_error}")
+    client = get_client()
+    messages = [{"role": "user", "content": query}]
+    tools = [{"type": "web_search_20260209", "name": "web_search", "max_uses": 8}]
+    # Server-side tools can pause a long turn; resend to let it continue.
+    for _ in range(4):
+        with client.messages.stream(model=config.agent_model, max_tokens=16000,
+                                    system=_INSTRUCTIONS, messages=messages,
+                                    tools=tools) as stream:
+            response = stream.get_final_message()
+        record_usage(config, "research-fallback", config.agent_model, response.usage)
+        if response.stop_reason != "pause_turn":
+            break
+        messages = [messages[0], {"role": "assistant", "content": response.content}]
+    if response.stop_reason == "refusal":
+        raise RuntimeError("Fallback web search was declined by the model")
+    return "\n".join(b.text for b in response.content if b.type == "text").strip()
