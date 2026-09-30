@@ -115,7 +115,7 @@ The call blocks, so in async code wrap it in `asyncio.to_thread()`.
 
 ## Costs
 
-Claude is the only paid part. The default is `claude-opus-5` at `EFFORT=high`.
+Claude is the only paid part. The default is `claude-opus-5-5` at `EFFORT=high`.
 For routine runs, `claude-sonnet-5` or `EFFORT=medium` costs much less. The
 system prompt is byte-stable between runs (the timestamp goes into the user
 message), so prompt caching works. Old tool results are cleared server-side
@@ -139,7 +139,7 @@ once the context gets large. Usage is printed to stderr after every run.
 
 | Area | Skeleton | Nightcrawler |
 |---|---|---|
-| Model | OpenAI `gpt-4o` | Claude (`claude-opus-5`), adaptive thinking, server-side refusal fallback |
+| Model | OpenAI `gpt-4o` | Claude (`claude-opus-5-5`), adaptive thinking, server-side refusal fallback |
 | Language | German prompts and skills | English throughout |
 | User context | Name, language, timezone | Profile with home, goals, budget, travel limits, and scoring weights; optional IP location |
 | Ranking | None | `score_opportunity`: all-in cost, distance, budget, and deadline flags |

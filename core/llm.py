@@ -39,7 +39,7 @@ PARALLEL_SAFE_TOOLS = {
 }
 MAX_PARALLEL_TOOLS = 6
 MAX_TOOL_RESULT_CHARS = 30000
-MAX_TOKENS = 32000
+MAX_TOKENS = 64000   # thinking is always on and counts toward this
 
 BETAS = [
     "server-side-fallback-2026-07-01",   # re-run a declined request on a fallback model

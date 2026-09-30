@@ -82,7 +82,7 @@ def load_config() -> Config:
         profile_path = ROOT / profile_path
 
     config = Config(
-        agent_model=os.getenv("AGENT_MODEL", "claude-opus-5").strip(),
+        agent_model=os.getenv("AGENT_MODEL", "claude-opus-5-5").strip(),
         effort=os.getenv("EFFORT", "high").strip().lower(),
         mock_llm=_parse_bool(os.getenv("MOCK_LLM", "false")),
         max_rounds=_int("MAX_ROUNDS", 25),
