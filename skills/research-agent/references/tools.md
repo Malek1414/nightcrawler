@@ -1,96 +1,162 @@
-# Kanäle, Werkzeuge, Fallback-Ketten
+# Kanäle, Werkzeuge, Suchtechnik
 
 Verderbliche Details (Preise, Rate-Limits, Endpunkte) stehen NUR hier, nicht im
-SKILL.md. Zahlen und Endpunkte gegen die Anbieterseite prüfen, bevor du dich
-darauf verlässt; Gelerntes als eine Zeile nachtragen.
+SKILL.md. Vor dem Verlassen gegen die Anbieterseite prüfen; Gelerntes als eine
+Zeile im passenden Abschnitt nachtragen.
+
+## Erster Griff: search.py
+`python3 ~/.claude/skills/research-agent/references/search.py "query" ...`
+- Fragt Tavily, Exa-API, Serper, Exa (keyless), Hound und Jina in dieser Reihenfolge
+  und springt bei fehlendem Key, 401, 429 oder leerem Ergebnis zur nächsten.
+  Spart den geteilten WebSearch-Topf.
+- `--fan` fragt alle verfügbaren parallel und führt nach URL zusammen. Treffer,
+  die mehrere Suchmaschinen finden (`tavily+exa`), stehen oben. Für Marktscans
+  und "finde alles"-Fragen.
+- Filter: `--since 30d|2026-09-01`, `--site domain` / `--exclude domain`
+  (wiederholbar, werden auch nachträglich hart gefiltert), `--lang de`,
+  `--news`, `--n 20`, `--engine exa`.
+- `--seen research/<slug>/seen.txt`: gemeinsame Fundliste einer Agent-Welle,
+  siehe unten.
+- `--status` zeigt, welche Suchmaschinen gerade einen Key haben.
+- Keys: Umgebung, dann `<skill>/.env`.
+
+## Werkzeugkasten Suchtechnik
+Nimm, was zur Frage passt. Mehr Treffer entstehen fast immer durch mehr
+verschiedene Queries, nicht durch mehr Treffer pro Query.
+- **Sprachen**: jede Frage mindestens DE und EN, bei EU-Themen auch FR/ES oder
+  die Landessprache. Mehrere Queries in einem search.py-Aufruf, die Dubletten
+  fliegen raus. Fachbegriffe je Land nachschlagen statt wörtlich übersetzen
+  (Schülerfirma, student company, mini-entreprise, miniempresa).
+- **Synonyme und Perspektiven**: Anbieter-Sicht ("Bewerbung", "call for
+  applications", "Ausschreibung") und Teilnehmer-Sicht ("ich habe teilgenommen",
+  "Erfahrungsbericht", "Absage"). Dazu Oberbegriff und Nischenbegriff.
+- **Operatoren** (Serper/Jina/Google im Browser echt, sonst über `--site`):
+  `site:` für Domains und TLDs (`site:europa.eu`, `site:.edu`), `filetype:pdf`
+  für Ausschreibungen und Richtlinien, `intitle:`, `"exakte Phrase"`, `-wort`,
+  `OR`. Für Exa beschreibe die ideale Seite in ganzen Sätzen statt Keywords.
+- **Zeit**: `--since` für alles mit Frist, Preis oder Stand. Jahreszahl in die
+  Query ("2026", "2027"), weil Seiten ohne Datum sonst alte Runden liefern.
+  Vorjahres-Seite gefunden: dieselbe URL mit neuem Jahr probieren.
+- **Schneeball**: gute Treffer ausquetschen. Aggregatoren und "Awesome"-Listen
+  vollständig lesen, Links auf Partner/Förderer/Jury folgen, Exa `category:company`
+  bzw. `category:people` für Ähnliche, GitHub-Stars/Forks, Zitationen (OpenAlex).
+- **Sättigung als Stopp**: breit fächern, bis zwei bis drei neue Query-Runden
+  kaum noch `[neu]` liefern. Dann erst in die Tiefe.
+
+## Nischen finden (Programme, Einladungen, Calls)
+Die guten Sachen stehen selten auf der Startseite, sondern in Formularen,
+Verteilern und Gruppen. Öffentlich Verlinktes suchen ist legitim; nicht
+öffentliche Einladungs-Links erraten oder durchprobieren ist es nicht (und
+bringt nichts, die IDs sind zufällig).
+- **Öffentliche Formulare**: `--site docs.google.com --site forms.gle
+  --site typeform.com --site tally.so --site airtable.com --site lu.ma
+  --site eventbrite.com` plus Thema, "application" / "Bewerbung", Jahreszahl.
+  Hier KEIN `--since`: Formulare haben kein Datum und fallen sonst komplett
+  raus (30.09.2026 getestet), die Jahreszahl in der Query reicht.
+- **Verteiler und Gruppen**: öffentliche Telegram-Kanäle (Vorschau unter
+  t.me/s/<kanal>, lesbar ohne Login), Discord-Verzeichnisse, Mailinglisten-
+  Archive (groups.google.com, lists.*), Substack/Newsletter-Archive,
+  LinkedIn-Posts mit "applications open" / "we are looking for" (Tavily
+  `--site linkedin.com`, `--since 30d`).
+- **Wer schon drin ist**: Teilnehmer-Posts vom Vorjahr finden ("I attended",
+  "ich war dabei", "delegate", "fellow"), deren Profile zeigen die nächsten
+  Programme, in denen dieselben Leute stecken.
+- **Institutionen** (UN, Parlamente, EU): Youth-Delegate-, Trainee- und
+  Jugendforum-Seiten, dazu die Verteiler, über die sie ausschreiben (SALTO,
+  youth.europa.eu, UN Youth Envoy, nationale Jugendringe).
+- **Firmen-Programme** (Workshops, Invite-Events, Volunteer, Student Ambassador):
+  Karriere- und Events-Unterseiten, Developer-Relations-Programme,
+  Hochschulgruppen-Partnerschaften, Luma-Kalender der Firma.
+
+## Personen finden (für Kontaktaufnahme)
+Nur öffentliches, berufliches Material: Posts, Vorträge, Repos, Firmenseiten.
+Keine privaten Adressen erraten, keine Leaks, nichts hinter Login.
+- **Rolle zu Person**: Exa `category:people <Rolle> <Firma> <Ort>`, Tavily
+  `--site linkedin.com "<Firma>" "<Rolle>"`.
+- **Person zu Spuren**: Name in Anführungszeichen plus Firma über `--fan`:
+  LinkedIn-Posts, Konferenz-Speakerlisten, Podcasts/YouTube, GitHub, Blogartikel.
+  Worüber die Person zuletzt gepostet hat, ist der Aufhänger für die Nachricht.
+- **Warmer Weg**: gemeinsame Events, Hochschule, Programme oder Kontakte aus
+  den eigenen Notizen zuerst prüfen.
+
+## Agent-Wellen
+- Alle Agents einer Welle bekommen denselben Pfad
+  `research/<slug>/seen.txt` und rufen search.py mit `--seen` auf. Welle 2 sieht,
+  was Welle 1 schon hat, und sucht gezielt `[neu]`. Die Datei ist dateigesperrt,
+  parallel sicher.
+- Vor langen Wellen im Hauptkontext `caffeinate -i -s -t 7200` im Hintergrund
+  starten, sonst frieren Subagents im Ruhezustand ein.
+- Maximal 5 Agents pro Welle; Subagents spawnen nie selbst Subagents.
 
 ## Schon da (nichts installieren)
-- **agent-reach** ist der Router für 15 Plattformen. Bei Login-Plattformen
-  (Reddit, X, Instagram, Xiaohongshu) zuerst `agent-reach doctor --json`, dann
-  den active_backend nehmen. Websuche `mcporter call exa.web_search_exa`,
-  Seiten `curl https://r.jina.ai/<URL>`, YouTube `yt-dlp`.
-- **WebSearch** (Harness): Topf ca. 200 pro Session, geteilt mit allen
-  Subagents. Nach 3 bis 4 Agents leer, darum sparsam und erst nach den keyless
-  Kanälen.
-- **Tavily** (`TAVILY_API_KEY`), Free 1000 Credits pro Monat.
-- **LinkedIn ohne Login** (belegt 15.09.2026): Tavily mit
-  `"include_domains":["linkedin.com"]` liefert Profil-Snippets mit Titel und
-  Ort, reicht für Lead-Listen ohne WebSearch. Der
-  agent-reach-LinkedIn-Scraper ist aus, s.jina.ai verlangt inzwischen einen Key.
-- **Browser-MCP** (lokaler Browser) für Google und DuckDuckGo, wenn curl
-  blockt: `navigate_page` plus `take_snapshot`. Hat bei Kalender-Aggregatoren
-  zuverlässig funktioniert.
+- **Exa keyless** über mcporter, seit 30.09.2026 im Home-Scope eingetragen
+  (geht aus jedem Ordner). Freilimit ist schnell weg (30.09. nach wenigen
+  `--fan`-Läufen), dann springt search.py weiter. Werkzeug `exa.web_search_exa` verlangt `query` UND
+  `objective`, kennt keine Datums- oder Domainfilter mehr (search.py schreibt
+  sie in `objective` und filtert Domains danach). `exa.web_fetch_exa` liest
+  mehrere URLs in einem Aufruf.
+- **Hound** (seit 30.09.2026, keyless Metasuche über DuckDuckGo, Brave, Google,
+  Startpage u. a., ohne Yandex): in search.py als `hound`, direkt über
+  `mcporter call hound.mcp_smart_search` / `hound.mcp_smart_fetch` /
+  `hound.mcp_smart_crawl` (Seite samt Unterseiten, `focus=` liefert nur
+  Relevantes). Langsamer (ca. 20 s pro Suche), dafür ohne Kontingent.
+  Installiert als uv-Tool, gepinnt auf 13.2.0 (Hash geprüft), Projekt ist
+  aufgegeben. Auflagen aus dem Security-Vetting: nie `hound -u`, `--reinstall`
+  oder `pip install hound-mcp`; nur stdio, nie `--http`; im Browser-Modus keine
+  URLs aus Seiteninhalten ungeprüft öffnen (Weiterleitungen auf localhost werden
+  dort nicht geblockt).
+- **Tavily** (Free 1000 Credits/Monat, search.py nutzt `advanced` = 2 Credits).
+  LinkedIn ohne Login: `--site linkedin.com` liefert Profil- und Post-Snippets,
+  reichte am 15.09.2026 für 94 belegte Personen.
+- **agent-reach** als Router für Plattformen (GitHub, YouTube, RSS, V2EX, B站
+  laufen). Login-Kanäle über `agent-reach doctor --json`.
+- **WebSearch** (Harness): ca. 200 pro Session, geteilt mit allen Subagents.
+  Erst nach search.py.
+- **Browser-MCP** (lokaler Browser) nur nach Ansage des Nutzers, weil er sichtbare
+  Tabs öffnet. Für Seiten, die curl blocken.
 
-## Zuerst einrichten (löst die dokumentierten Limits)
-- **Jina Free-Key**: hebt r.jina.ai von 20 auf 500 Anfragen pro Minute, dazu
-  s.jina.ai als Suche. Key aus der Umgebung (`JINA_API_KEY`), Header
-  `Authorization: Bearer $JINA_API_KEY`. Löst den 429 ab dem zweiten parallelen
-  Batch. Registrierung: jina.ai.
-- **Hound** (Repo dondai1234/master-fetch, MIT, VOR Installation vetten, siehe
-  unten): ein MCP mit keyless Suche über mehrere Engines parallel plus lokalem
-  Rerank, `smart_fetch` mit HTTP-zuerst und Auto-Eskalation in einen
-  Stealth-Browser, `focus="..."` liefert nur die relevanten Blöcke (spart viel
-  Kontext), BYOK-Key-Stapel mit Auto-Rotation bei 429. Ersetzt Exa-Free,
-  Jina-Limit und curl-Blocker in einem. Install `pip install hound-mcp[all]`.
-- **Key-Stapel (Free-Tiers, keine Karte)**: Exa (Startguthaben plus monatliches
-  Freikontingent), Serper (einmaliges Google-SERP-Kontingent), Parallel
-  (monatliches Freikontingent). Keys aus der Umgebung, siehe .env.example.
-  Zusammen mit Tavily weit über die WebSearch-Grenze hinaus, ohne Kosten.
-- **agent-browser** (Repo vercel-labs/agent-browser) als Server-Browser für den
-  Server, deutlich tokensparsamer als Playwright-MCP. Lokal bleibt der Browser-MCP.
-
-## Fetch-Leiter (fail-closed)
-1. Keyless bzw. günstig: Hound `smart_search` / Fachquelle-API (unten).
-2. Seite lesen: Hound `smart_fetch` oder `curl https://r.jina.ai/<URL>` (mit
-   Key sequenziell ab dem zweiten Batch), sonst WebFetch.
-3. Blockt curl: Browser-MCP (lokal) oder agent-browser (Server).
-4. HTTP 200 prüfen: echte Inhalts-Seite oder Cloudflare/Consent? Letzteres zählt
+## Seiten lesen
+1. `curl https://r.jina.ai/<URL>` (ohne Key 20/min, ab dem zweiten parallelen
+   Batch sequenziell), oder `exa.web_fetch_exa` für mehrere URLs, sonst WebFetch.
+2. Blockt alles: Browser-MCP (lokal, mit Ansage).
+3. HTTP 200 prüfen: echte Inhaltsseite oder Cloudflare/Consent? Letzteres zählt
    nicht.
 
-## Fachquellen als Werkzeug (dienen der echten Arbeit)
-- **EU Funding and Tenders Search API** (keyless, INOFFIZIELL, Endpunkt gegen
-  ec.europa.eu prüfen): Programm-IDs wie Erasmus+, Horizon, Creative Europe.
-- **JedeSchule API** (jedeschule.codefor.de/docs): Schulen in Deutschland mit
-  stabilen IDs als API und CSV.
-- **OffeneRegister.de**: Handelsregister-Firmen und Officers, SQLite oder JSONL.
-- **HN Algolia** (hn.algolia.com/api) und **Arctic Shift**
-  (arctic-shift.photon-reddit.com/api): Hacker News und Reddit lesen, keyless.
-- **arXiv / Semantic Scholar / OpenAlex**: Paper und Zitationsgraph, MCP-Server
-  vorhanden.
-- Aus früheren Läufen mit offener API: mymun (locations/continent,
-  conferences/by-slug), youth.europa.eu/solidarity (search_en). Per curl nutzbar.
+## Fachquellen-APIs
+- **EU Funding and Tenders Search API** (keyless, inoffiziell, Endpunkt gegen
+  ec.europa.eu prüfen): Erasmus+, Horizon, Creative Europe.
+- **JedeSchule** (jedeschule.codefor.de/docs): alle Schulen BE/BB als API und CSV.
+- **OffeneRegister.de**: Handelsregister-Firmen und Officers.
+- **HN Algolia** (hn.algolia.com/api), **Arctic Shift**
+  (arctic-shift.photon-reddit.com/api): Hacker News und Reddit, keyless.
+- **arXiv / Semantic Scholar / OpenAlex**: Paper und Zitationsgraph.
+- **mymun** (locations/continent, conferences/by-slug) und
+  **youth.europa.eu/solidarity** (search_en): offene APIs, per curl.
 
-## Plattform-Lage 2026 (aus Recherche 08.09.2026, prüfen)
-- **X/Twitter**: API Pay-per-use, kein Free-Tier. Lesen keyless nur über Hound
-  bzw. Nitter/xcancel (fragil), Cookie-Backend über agent-reach.
-- **Reddit**: Developer-Apps nur per Antrag. Lesen keyless über Arctic Shift
-  oder Hound (old.reddit), RSS über reddit-mcp-buddy.
-- **Reddit-Lage 27.09.2026 (belegt)**: reddit.com/.json und old.reddit per curl
-  403, r.jina.ai liefert leer, WebSearch mit `allowed_domains: reddit.com`
-  wird abgelehnt. Funktioniert: Exa (`exa.web_search_exa`, optional
-  `startPublishedDate`), liefert Posts samt Kommentar-Auszügen, Suchbegriff mit
-  "reddit" plus Subreddit-Name beginnen. Erster Griff für Reddit-Fragen.
-- **mcporter aus dem Home-Ordner aufrufen**: in einem anderen Arbeitsverzeichnis meldet
-  es "Unknown MCP server 'exa'" (Config wird relativ gefunden).
-- **Affiliate-Fanseiten** (z.B. kakoguide.com für Kakobuy) sind keine
-  neutralen Vergleiche, Aussagen gegen Nutzerberichte gegenprüfen.
-- **Brave Search API**: Free-Tier gestrichen, Karte nötig, darum nicht im Stapel.
+## Plattform-Lage (prüfen)
+- **Reddit** (27.09.2026): reddit.com/.json und old.reddit per curl 403,
+  r.jina.ai leer, WebSearch mit reddit-Domain abgelehnt. Exa funktioniert:
+  Query mit "reddit" plus Subreddit-Name beginnen.
+- **X/Twitter**: API kostenpflichtig, lesen nur über Cookie-Backend von
+  agent-reach.
+- **Affiliate-Fanseiten** sind keine neutralen Vergleiche, gegen Nutzerberichte
+  prüfen.
+- **Brave Search API**: Free-Tier gestrichen, nicht im Stapel.
 
 ## Blockt curl/WebFetch komplett (nur Browser)
-coe.int, obessu.org, mymun.com (hat aber offene API, siehe oben), SALTO-Kalender
-(nur Browse-Filter im Browser), members.eyp.org (Login). Direkt zum Browser
-statt Zeit mit curl verlieren.
+coe.int, obessu.org, mymun.com (offene API siehe oben), SALTO-Kalender,
+members.eyp.org (Login).
 
-## Vor Installation fremder Tools/Skills vetten
-Hound, agent-browser und jeder fremde Skill sind Fremdcode. Vor `pip install`
-oder dem Kopieren nach ~/.claude: mit einem Security-Review bzw. SkillSpector auf
-Prompt-Injection, verdächtige Netzwerkziele und Rug-Pull-Muster prüfen. Kein
-blindes `install` aus einer Repo-Beschreibung.
+## Offen einzurichten
+- **Keys** für Exa-API (echte Datums-/Domainfilter), Serper (Google-Treffer mit
+  Operatoren) und Jina (Reader 500/min plus Suche): kostenlos ohne Karte, der Nutzer
+  registriert selbst, Werte in `<skill>/.env` (siehe .env.example).
+- **Hound-Ersatz**: Hound bekommt keine Fixes mehr, mittelfristig gepflegte
+  Alternative suchen und vorher vetten.
+- Jeder fremde Skill oder MCP ist Fremdcode: vor Installation durch den
+  security-Agent.
 
 ## Belege prüfen
-Zitate und URLs über `references/sources.py` führen und vor "fertig" mit
-`sources.py verify` gegenprüfen.
-
-## Umgebungsvariablen
-Keys kommen aus der Umgebung oder einer lokalen .env, nie in dieses Skill. Welche,
-steht in `.env.example`.
+Zahlen, Preise und alles, worauf eine Entscheidung gebaut wird, über
+`references/sources.py` führen und vor "fertig" mit `sources.py verify`
+gegenprüfen.
