@@ -52,6 +52,10 @@ flowchart LR
 - **Fetched content is data, never instructions.** The agent prompt says so explicitly, and `fetch_hard.py` never lets page content or the model choose browser flags.
 - **Keys** come from the environment, then from a local `.env` (gitignored). Inline comments in `.env` are stripped, a bug that once sent a comment as an API key.
 
+## Security
+
+Threat model and mitigations are in [SECURITY.md](SECURITY.md): fetched pages are untrusted, the stealth browser cannot reach internal addresses, keys never leave the environment.
+
 ## Tests
 
 ```
