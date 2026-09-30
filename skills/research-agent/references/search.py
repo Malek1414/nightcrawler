@@ -345,6 +345,8 @@ def mark_seen(hits, path):
             if h["new"]:
                 f.write(f"{h['key']}\t{h['title'][:80]}\t{stamp}\n")
                 known.add(h["key"])
+        f.flush()  # vor dem Entsperren schreiben, sonst liest der nächste Agent den alten Stand
+        os.fsync(f.fileno())
         fcntl.flock(f, fcntl.LOCK_UN)
 
 

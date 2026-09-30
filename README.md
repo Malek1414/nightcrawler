@@ -83,6 +83,8 @@ python -m unittest discover -s tests -v
 
 19 tests, no network, no keys, about one second. CI runs them on Linux and macOS with Python 3.10, 3.12 and 3.13. Covered: URL canonicalisation, merge ranking, fallback order and error logging, parallel fan-out surviving dead engines, `.env` parsing, eight concurrent writers on one `seen.txt` producing zero duplicates, the full `add / quote / verify` CLI flow including a fabricated quote being rejected, and the SSRF guard against loopback, RFC 1918, IPv6 loopback, cloud metadata and non-HTTP schemes.
 
+The concurrency test earned its place on day one: on Linux it caught `seen.txt` being unlocked before the buffered write reached the file, so parallel agents recorded the same URL twice. macOS never showed it.
+
 ## Setup
 
 1. Copy `skills/research-agent/` to `~/.claude/skills/research-agent/`.
