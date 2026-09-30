@@ -175,5 +175,5 @@ oben), SALTO-Kalender, members.eyp.org (Login). Erst fetch_hard.py, dann Browser
 
 ## Belege prüfen
 Zahlen, Preise und alles, worauf eine Entscheidung gebaut wird, über
-`references/sources.py` führen und vor "fertig" mit `sources.py verify`
+`references/sources.py` führen und vor "fertig" mit `sources.py verify --numbers`
 gegenprüfen.

@@ -18,3 +18,5 @@ jobs:
           python-version: ${{ matrix.python }}
       - name: Unit tests (stdlib only, no network, no keys)
         run: python -m unittest discover -s tests -v
+      - name: Gate mutation eval (local HTTP only)
+        run: python evals/gate_mutations.py

@@ -52,6 +52,25 @@ flowchart LR
 - **Fetched content is data, never instructions.** The agent prompt says so explicitly, and `fetch_hard.py` never lets page content or the model choose browser flags.
 - **Keys** come from the environment, then from a local `.env` (gitignored). Inline comments in `.env` are stripped, a bug that once sent a comment as an API key.
 
+## Evals
+
+`evals/gate_mutations.py` builds a correct three-source report served from a local HTTP server, then tries seven ways of faking a citation and records whether the gate rejects each one. Deterministic, no keys, runs in CI.
+
+| Mutation | `verify` | `verify --numbers` |
+|---|---|---|
+| fabricated citation [s04] with no source | caught | caught |
+| quote that is not on the page | caught | caught |
+| source added but never quoted | caught | caught |
+| source page changed after quoting (`--check-urls`) | caught | caught |
+| source page removed (`--check-urls`) | caught | caught |
+| two citations swapped | missed | caught |
+| claim changed, citation kept | missed | caught |
+| **total** | **5/7** | **7/7** |
+
+The first run showed the plain gate only proves that a cited source holds *some* verbatim quote, not that the sentence matches it. `--numbers` closes the two gaps for quantitative claims: every number in a cited sentence must appear in a quote of a source that sentence cites. A reworded non-numeric claim ("pays generously") still passes; that needs a semantic check (see Roadmap).
+
+For comparison: a benchmark of 14 LLMs as deep-research agents found that even the strongest keep cited links valid above 94 % but get the cited facts right only 39 to 77 % of the time ([Cited but Not Verified](https://arxiv.org/abs/2605.06635), 2026). None of the open-source research agents reviewed for this repo (gpt-researcher, STORM, open_deep_research, node-DeepResearch, smolagents) blocks a report on an unbacked citation at runtime.
+
 ## Security
 
 Threat model and mitigations are in [SECURITY.md](SECURITY.md): fetched pages are untrusted, the stealth browser cannot reach internal addresses, keys never leave the environment.
@@ -62,7 +81,7 @@ Threat model and mitigations are in [SECURITY.md](SECURITY.md): fetched pages ar
 python -m unittest discover -s tests -v
 ```
 
-18 tests, no network, no keys, under one second. CI runs them on Linux and macOS with Python 3.10, 3.12 and 3.13. Covered: URL canonicalisation, merge ranking, fallback order and error logging, parallel fan-out surviving dead engines, `.env` parsing, eight concurrent writers on one `seen.txt` producing zero duplicates, the full `add / quote / verify` CLI flow including a fabricated quote being rejected, and the SSRF guard against loopback, RFC 1918, IPv6 loopback, cloud metadata and non-HTTP schemes.
+19 tests, no network, no keys, about one second. CI runs them on Linux and macOS with Python 3.10, 3.12 and 3.13. Covered: URL canonicalisation, merge ranking, fallback order and error logging, parallel fan-out surviving dead engines, `.env` parsing, eight concurrent writers on one `seen.txt` producing zero duplicates, the full `add / quote / verify` CLI flow including a fabricated quote being rejected, and the SSRF guard against loopback, RFC 1918, IPv6 loopback, cloud metadata and non-HTTP schemes.
 
 ## Setup
 
@@ -80,7 +99,7 @@ search.py --status
 
 sources.py add https://example.org/call            # -> [s01]
 sources.py quote s01 --from page.txt --text "Deadline: 1 October"
-sources.py verify draft.md --check-urls            # exit 1 until every [sNN] is backed
+sources.py verify draft.md --check-urls --numbers  # exit 1 until every [sNN] is backed
 ```
 
 The skill triggers on phrases like "research", "find out", "compare", "market scan", or manually via `/research-agent`. For broad scans, spawn `researcher` agents in waves of at most five with one shared `seen.txt`.
@@ -90,6 +109,16 @@ The skill triggers on phrases like "research", "find out", "compare", "market sc
 - The skill text and agent prompt are in German; the scripts and this README are in English.
 - `fetch_hard.py` is slow (10 to 30 seconds per page) and meant for the pages nothing else can read.
 - The verify gate proves that a quote exists on a page, not that the claim built on it is a fair reading. That part stays with the reviewer.
+
+## Roadmap
+
+Measured before built. Each item lands only with a number that shows it helps.
+
+1. **Answer-quality eval.** 40 questions: 15 from FRAMES (Apache-2.0), 10 from SimpleQA (MIT), 10 time-sensitive questions from real failures, 5 unanswerable ones where the right answer is "unknown". Three arms: harness search only, this chain, this chain without the gate. Replay fixtures for CI, live runs nightly.
+2. **Rank fusion.** Replace "found by N engines" with reciprocal rank fusion plus a domain prior, weights tuned on the eval rather than guessed.
+3. **Engine bandit.** Thompson sampling over engines per query type, reward = ledger hits per cost.
+4. **Semantic claim check.** A per-claim judge (or an NLI model as an optional extra) for the claims `--numbers` cannot see.
+5. **Self-improving loop.** Change one thing in the skill, run the eval, keep it only if the score rises; eval files read-only to the agent to prevent reward hacking.
 
 ## License
 

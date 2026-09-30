@@ -53,6 +53,17 @@ class Ledger(unittest.TestCase):
         relaxed = self.run_cli("verify", draft, "--min-coverage", "0.5")
         self.assertEqual(relaxed.returncode, 0, relaxed.stdout + relaxed.stderr)
 
+    def test_numbers_mode_catches_changed_figure_but_passes_correct_report(self):
+        self.run_cli("add", "https://a.org")
+        self.run_cli("quote", "1", "--from", self.page, "--text", "programme pays €630 per month")
+        good = self.draft("It pays 630 euros a month [s01].")
+        self.assertEqual(self.run_cli("verify", good, "--numbers").returncode, 0)
+        bad = self.draft("It pays 900 euros a month [s01].")
+        self.assertEqual(self.run_cli("verify", bad).returncode, 0)  # plain gate cannot see it
+        red = self.run_cli("verify", bad, "--numbers")
+        self.assertNotEqual(red.returncode, 0)
+        self.assertIn("900", red.stdout)
+
     def test_draft_without_citations_fails(self):
         self.assertNotEqual(self.run_cli("verify", self.draft("No sources at all.")).returncode, 0)
 

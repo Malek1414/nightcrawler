@@ -17,6 +17,9 @@ Befehle:
       verlangt volle Deckung (1.0); mit --min-coverage bewusst lockern. Exit
       != 0 unter der Schwelle. --check-urls holt jede URL (2xx) und prüft ein
       gespeichertes Zitat live erneut, sonst gilt die Nummer als offen.
+      --numbers prüft zusätzlich jeden Satz: jede Zahl darin muss in einem
+      Zitat der Quellen stehen, die dieser Satz zitiert. Fängt geänderte
+      Zahlen und vertauschte Zitate, die der reine Zitat-Check durchlässt.
   list [--ledger ...]
       Zeigt das Ledger.
 
@@ -32,6 +35,8 @@ import urllib.request
 import urllib.error
 
 CITE_RE = re.compile(r"\[s0*(\d+)\]")
+NUM_RE = re.compile(r"\d+(?:[.,]\d+)*")
+SENT_RE = re.compile(r"(?<=[.!?])\s+|\n+")
 _WS = re.compile(r"\s+")
 _TRANS = {ord("“"): '"', ord("”"): '"', ord("„"): '"', ord("’"): "'",
           ord("‘"): "'", ord("—"): "-", ord("–"): "-", ord(" "): " "}
@@ -109,6 +114,25 @@ def _fetch_ok(url, want_quote=None, timeout=15):
         return False, str(exc)
 
 
+def number_mismatches(draft, data):
+    """Sätze, deren Zahlen in keinem Zitat der dort zitierten Quellen stehen."""
+    out = []
+    for sent in SENT_RE.split(draft):
+        cites = {str(int(n)) for n in CITE_RE.findall(sent)}
+        if not cites:
+            continue
+        quoted = set()
+        for sid in cites:
+            for q in data["sources"].get(sid, {}).get("quotes", []):
+                quoted.update(NUM_RE.findall(q))
+        missing = [n for n in NUM_RE.findall(CITE_RE.sub("", sent)) if n not in quoted]
+        if missing:
+            out.append(f"Zahl {', '.join(missing)} steht in keinem Zitat von "
+                       f"{' '.join(f'[s{int(c):02d}]' for c in sorted(cites, key=int))}: "
+                       f"{sent.strip()[:90]}")
+    return out
+
+
 def cmd_verify(args):
     data = load(args.ledger)
     with open(args.draft, encoding="utf-8") as fh:
@@ -128,6 +152,11 @@ def cmd_verify(args):
                 reasons.append(f"[s{n:02d}] URL/Zitat-Check: {why}")
                 continue
         proven.append(n)
+    if args.numbers:
+        mismatches = number_mismatches(draft, data)
+        reasons += mismatches
+        if mismatches:
+            proven = []
     coverage = len(proven) / len(cited)
     print(f"Zitiert: {len(cited)}  Belegt: {len(proven)}  Deckung: {coverage:.0%}"
           f"  (Schwelle {args.min_coverage:.0%})")
@@ -156,7 +185,8 @@ def main():
     q.add_argument("--text", required=True); q.set_defaults(fn=cmd_quote)
     v = sub.add_parser("verify")
     v.add_argument("draft"); v.add_argument("--min-coverage", type=float, default=1.0)
-    v.add_argument("--check-urls", action="store_true"); v.set_defaults(fn=cmd_verify)
+    v.add_argument("--check-urls", action="store_true")
+    v.add_argument("--numbers", action="store_true"); v.set_defaults(fn=cmd_verify)
     l = sub.add_parser("list"); l.set_defaults(fn=cmd_list)
 
     args = ap.parse_args()
