@@ -5,6 +5,10 @@
 # Every field is optional. The more you fill in, the better the agent can
 # decide what to look for and how to rank it.
 
+# Anything else the agent should know, in plain words. (Top-level keys must
+# come before the first [table] in TOML, so this sits here.)
+notes = "Weekday evenings and weekends work best. Happy to volunteer at events to get in free."
+
 [who]
 name = "Alex"
 role = "technical founder, pre-seed"
@@ -19,7 +23,8 @@ avoid = ["crypto token launches", "paid 'pitch to investors' events that charge 
 
 [home]
 city = "Berlin, Germany"
-# Optional. Without lat/lon the city is geocoded once via OpenStreetMap.
+# Optional. Without lat/lon the city is geocoded via OpenStreetMap and the
+# result cached in ~/.cache/nightcrawler/geocode.json.
 # lat = 52.520
 # lon = 13.405
 currency = "EUR"
@@ -46,5 +51,3 @@ fit = 4
 access = 5              # cheap and close beats expensive and far
 investor_presence = 3   # rooms with people who deploy capital
 
-# Anything else the agent should know, in plain words.
-notes = "Weekday evenings and weekends work best. Happy to volunteer at events to get in free."

@@ -43,6 +43,14 @@ def make_config(**overrides) -> Config:
     return Config(**base)
 
 
+@pytest.fixture(autouse=True)
+def _no_disk_geocode_cache(monkeypatch):
+    """Tests must not read or write ~/.cache."""
+    from integrations import profile
+
+    monkeypatch.setattr(profile, "GEO_CACHE_FILE", None)
+
+
 @pytest.fixture
 def config() -> Config:
     return make_config()

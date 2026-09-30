@@ -16,6 +16,7 @@ way every time, with the breakdown shown.
 
 from __future__ import annotations
 
+import json
 import logging
 import math
 import threading
@@ -80,6 +81,9 @@ class Profile:
     travel: Travel = field(default_factory=Travel)
     weights: Weights = field(default_factory=Weights)
     notes: str = ""
+    # False when there is no profile file and only a location is known
+    # (LOCATION_SOURCE=ip). Budgets and weights are then defaults, not the user's.
+    configured: bool = True
 
     @property
     def has_home(self) -> bool:
@@ -125,11 +129,14 @@ def with_location(profile: Profile | None, source: str) -> Profile | None:
     import dataclasses
 
     if source == "ip":
+        # IP mode means "where I am right now", so city and coordinates both
+        # come from the IP, overriding the profile's home. Keeping the profile
+        # city with IP coordinates would show one place and measure from another.
         try:
             loc = ip_location()
-            base = profile or Profile()
+            base = profile or Profile(configured=False)
             return dataclasses.replace(
-                base, home_city=base.home_city or f"{loc['city']}, {loc['country']}",
+                base, home_city=f"{loc['city']}, {loc['country']} (current location, from IP)",
                 home_lat=loc["lat"], home_lon=loc["lon"])
         except Exception as e:
             logger.warning("IP location failed (%s), using the profile only", e)
@@ -144,10 +151,14 @@ def with_location(profile: Profile | None, source: str) -> Profile | None:
 
 def render(profile: Profile | None) -> str:
     """Profile as a prompt block. Stable text, so it stays in the prompt cache."""
-    if profile is None:
-        return ("\n\nUser profile: none configured. Rank opportunities on general "
-                "merit, say once that personal ranking needs a profile.toml, and "
-                "ask for the user's city if distance matters for the task.")
+    if profile is None or not profile.configured:
+        text = ("\n\nUser profile: none configured. Rank opportunities on general "
+                "merit, say once that personal ranking needs a profile.toml")
+        if profile is not None and profile.has_home:
+            return (text + f". Known location: {profile.home_city} "
+                    f"({profile.home_lat:.3f}, {profile.home_lon:.3f}); budget limits "
+                    "in scores are defaults, not the user's.")
+        return text + ", and ask for the user's city if distance matters for the task."
     b, c = profile.budget, profile.currency
     lines = ["", "", "User profile (who you work for; use it to decide WHAT to look for "
              "and HOW to rank it):"]
@@ -179,6 +190,32 @@ def render(profile: Profile | None) -> str:
 _GEO_CACHE: dict[str, tuple[float, float, str]] = {}
 _GEO_LOCK = threading.Lock()
 _last_geo_call = 0.0
+# Geocoding results persist here, so the home city is looked up once, not on
+# every start. Set to None to disable (tests do).
+GEO_CACHE_FILE: Path | None = Path.home() / ".cache" / "nightcrawler" / "geocode.json"
+_disk_loaded = False
+
+
+def _load_disk_cache() -> None:
+    global _disk_loaded
+    _disk_loaded = True
+    if GEO_CACHE_FILE is None or not GEO_CACHE_FILE.exists():
+        return
+    try:
+        for k, v in json.loads(GEO_CACHE_FILE.read_text(encoding="utf-8")).items():
+            _GEO_CACHE.setdefault(k, tuple(v))
+    except (OSError, ValueError):
+        logger.warning("Ignoring unreadable geocode cache %s", GEO_CACHE_FILE)
+
+
+def _save_disk_cache() -> None:
+    if GEO_CACHE_FILE is None:
+        return
+    try:
+        GEO_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        GEO_CACHE_FILE.write_text(json.dumps(_GEO_CACHE, ensure_ascii=False), encoding="utf-8")
+    except OSError:
+        logger.warning("Could not write geocode cache %s", GEO_CACHE_FILE)
 
 
 def geocode(place: str) -> tuple[float, float, str]:
@@ -188,6 +225,8 @@ def geocode(place: str) -> tuple[float, float, str]:
     global _last_geo_call
     key = place.strip().lower()
     with _GEO_LOCK:
+        if not _disk_loaded:
+            _load_disk_cache()
         if key in _GEO_CACHE:
             return _GEO_CACHE[key]
         wait = 1.1 - (time.monotonic() - _last_geo_call)
@@ -202,6 +241,7 @@ def geocode(place: str) -> tuple[float, float, str]:
             raise ProfileError(f"Place not found: {place}")
         result = (float(hits[0]["lat"]), float(hits[0]["lon"]), hits[0].get("display_name", place))
         _GEO_CACHE[key] = result
+        _save_disk_cache()
         return result
 
 
@@ -291,6 +331,7 @@ def score_opportunity(
 
     total = round(float(fee) + travel, 2)
     b = p.budget
+    travel_unknown = mode == "unknown"
     if fee > b.max_fee:
         flags.append(f"fee {fee:g} above max {b.max_fee:g}")
     if total > b.max_total:
@@ -299,7 +340,7 @@ def score_opportunity(
         flags.append(f"{dist:.0f} km is beyond the {b.max_travel_km:g} km travel limit")
     if online and not b.online_ok:
         flags.append("online, but the profile prefers in person")
-    if fee == 0 and travel == 0:
+    if fee == 0 and travel == 0 and not travel_unknown:
         flags.append("free to access")
 
     if deadline:
@@ -317,7 +358,9 @@ def score_opportunity(
         "payoff": clamp(payoff, 1, 5) / 5,
         "fit": clamp(fit, 1, 5) / 5,
         # 1.0 when free and local, 0.5 when it costs exactly the whole budget.
-        "access": 1 / (1 + total / max(b.max_total, 1)),
+        # Unknown travel is assumed to cost the whole budget, so an event of
+        # unknown distance never outranks a known cheap one on access.
+        "access": 1 / (1 + (total + (b.max_total if travel_unknown else 0)) / max(b.max_total, 1)),
         "investor_presence": clamp(investor_presence, 0, 3) / 3,
     }
     w = p.weights

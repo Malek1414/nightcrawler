@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 # run in parallel.
 PARALLEL_SAFE_TOOLS = {
     "web_search", "read_page", "youtube_transcript",
-    "search_notes", "read_note", "read_skill", "geo_distance",
+    "search_notes", "read_note", "read_skill", "geo_distance", "score_opportunity",
 }
 MAX_PARALLEL_TOOLS = 6
 MAX_TOOL_RESULT_CHARS = 30000
@@ -53,7 +53,11 @@ CONTEXT_MANAGEMENT = {"edits": [{
 
 # Token usage per run, for display only.
 USAGE: dict[str, dict[str, int]] = defaultdict(
-    lambda: {"in": 0, "out": 0, "cache_read": 0, "calls": 0})
+    lambda: {"in": 0, "out": 0, "cache_read": 0, "cache_write": 0, "calls": 0})
+
+_TRUNCATED = ("Your previous reply ran out of output tokens and was discarded. "
+              "Think less and act: either make the next tool calls, or write the "
+              "final answer concisely.")
 
 # A gate looks at the draft final answer and returns None (accept) or a
 # message that sends the model back to work.
@@ -82,6 +86,7 @@ def record_usage(config: Config, agent: str, model: str, usage) -> None:
         entry["in"] += int(getattr(usage, "input_tokens", 0) or 0)
         entry["out"] += int(getattr(usage, "output_tokens", 0) or 0)
         entry["cache_read"] += int(getattr(usage, "cache_read_input_tokens", 0) or 0)
+        entry["cache_write"] += int(getattr(usage, "cache_creation_input_tokens", 0) or 0)
         entry["calls"] += 1
     except Exception:
         logger.exception("Token tracking failed")
@@ -92,7 +97,10 @@ def usage_summary() -> str:
     if not USAGE:
         return "no usage recorded"
     return " | ".join(
-        f"{key}: {v['calls']} calls, {v['in']} in ({v['cache_read']} cached) / {v['out']} out"
+        # input_tokens excludes cached tokens, so the total input is the sum.
+        f"{key}: {v['calls']} calls, "
+        f"{v['in'] + v['cache_read'] + v['cache_write']} in "
+        f"({v['cache_read']} cache reads, {v['cache_write']} cache writes) / {v['out']} out"
         for key, v in USAGE.items()
     )
 
@@ -109,6 +117,16 @@ def _run_tool(handlers: dict | None, name: str, args: dict) -> tuple[str, bool]:
     except Exception as e:
         logger.exception("Tool '%s' failed", name)
         return f"Error in {name}: {e}", True
+
+
+def _add_assistant(convo: list[dict], content) -> None:
+    """Append an assistant turn. A response that follows a pause_turn continues
+    the SAME turn, so it extends the last assistant message instead of
+    stacking a second one."""
+    if convo and convo[-1]["role"] == "assistant":
+        convo[-1] = {"role": "assistant", "content": [*convo[-1]["content"], *content]}
+    else:
+        convo.append({"role": "assistant", "content": list(content)})
 
 
 def _text(response) -> str:
@@ -167,11 +185,20 @@ def run_tool_loop(
             return "The model declined this request, and the fallback model declined too."
 
         if response.stop_reason == "pause_turn":
-            convo.append({"role": "assistant", "content": response.content})
+            # Resend so the model continues the same turn.
+            _add_assistant(convo, response.content)
+            continue
+
+        if response.stop_reason == "max_tokens":
+            # Cut off mid-turn (often while thinking): any tool_use block may be
+            # incomplete and there may be no text. Drop the truncated turn and
+            # ask for a shorter one instead of returning an empty answer.
+            logger.warning("Response hit max_tokens, asking for a shorter turn")
+            convo.append({"role": "user", "content": _TRUNCATED})
             continue
 
         tool_uses = [b for b in response.content if b.type == "tool_use"]
-        convo.append({"role": "assistant", "content": response.content})
+        _add_assistant(convo, response.content)
 
         if not tool_uses:
             answer = _text(response)
@@ -210,7 +237,10 @@ def run_tool_loop(
         "final answer now from what you have, and list clearly what is still "
         "open or unverified.")})
     response = call(tool_choice={"type": "none"})
-    return _text(response) or "Stopped at the step limit without a usable answer."
+    answer = _text(response)
+    if response.stop_reason == "max_tokens" and answer:
+        answer += "\n\n[Answer cut off at the output limit.]"
+    return answer or "Stopped at the step limit without a usable answer."
 
 
 def tool(name: str, description: str, params: dict, required: list[str] | None = None) -> dict:

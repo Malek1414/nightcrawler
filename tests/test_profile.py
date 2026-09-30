@@ -25,6 +25,7 @@ def test_example_profile_parses():
     assert p.home_city.startswith("Berlin")
     assert p.budget.max_total == 250 and p.weights.access == 5
     assert p.goals and p.avoid
+    assert "volunteer" in p.notes          # top-level key, not swallowed by [weights]
 
 
 def test_missing_profile_is_none(tmp_path):
@@ -95,6 +96,65 @@ def test_without_profile_still_scores_and_says_travel_unknown():
     r = prof.score_opportunity(None, "X", payoff=3, fit=3, location="Paris", today=TODAY)
     assert 0 <= r["score"] <= 100
     assert "travel cost not included" in r["flags"]
+
+
+def test_unknown_travel_is_not_free_and_never_beats_known_cheap():
+    """Unknown distance used to count as zero travel: a 9000 km event got
+    'free to access' and the best possible access score."""
+    u = _user()
+    unknown = prof.score_opportunity(u, "Far?", payoff=3, fit=3, fee=0, today=TODAY)
+    local = prof.score_opportunity(u, "Local", payoff=3, fit=3, fee=0,
+                                   distance_km=3, today=TODAY)
+    assert "free to access" not in unknown["flags"]
+    assert unknown["components"]["access"] <= 0.5
+    assert local["score"] > unknown["score"]
+
+
+def test_ip_location_without_profile_is_not_a_profile(monkeypatch):
+    """IP mode with no profile.toml must not present default budgets as the
+    user's own limits."""
+    monkeypatch.setattr(prof, "ip_location", lambda: {
+        "city": "Cairo", "country": "Egypt", "lat": 30.04, "lon": 31.24})
+    p = prof.with_location(None, "ip")
+    text = prof.render(p)
+    assert "none configured" in text and "Cairo" in text
+    assert "Budget per opportunity" not in text
+
+
+def test_ip_mode_replaces_city_and_coordinates_together(monkeypatch):
+    monkeypatch.setattr(prof, "ip_location", lambda: {
+        "city": "Frankfurt", "country": "Germany", "lat": 50.11, "lon": 8.68})
+    p = prof.with_location(_user(), "ip")
+    assert p.home_city.startswith("Frankfurt") and p.home_lat == 50.11
+    assert "Berlin" not in prof.render(p)
+
+
+def test_geocode_results_persist_on_disk(tmp_path, monkeypatch):
+    cache = tmp_path / "geo.json"
+    monkeypatch.setattr(prof, "GEO_CACHE_FILE", cache)
+    monkeypatch.setattr(prof, "_GEO_CACHE", {})
+    monkeypatch.setattr(prof, "_disk_loaded", False)
+    monkeypatch.setattr(prof.time, "sleep", lambda s: None)
+
+    class Resp:
+        def raise_for_status(self): pass
+        def json(self): return [{"lat": "1.5", "lon": "2.5", "display_name": "X"}]
+
+    class Client:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def get(self, *a, **k):
+            calls.append(1)
+            return Resp()
+    calls = []
+    monkeypatch.setattr(prof.httpx, "Client", Client)
+    assert prof.geocode("Somewhere") == (1.5, 2.5, "X")
+    # A fresh process: memory cache empty, disk cache present, no HTTP call.
+    monkeypatch.setattr(prof, "_GEO_CACHE", {})
+    monkeypatch.setattr(prof, "_disk_loaded", False)
+    assert prof.geocode("somewhere ") == (1.5, 2.5, "X")
+    assert calls == [1]
 
 
 def test_render_mentions_budget_and_home():

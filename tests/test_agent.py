@@ -36,8 +36,8 @@ def test_parallel_list_covers_all_read_tools(config_with_notes):
     the prompt turns into a queue."""
     from core.llm import PARALLEL_SAFE_TOOLS
 
-    reading = {"web_search", "read_page", "youtube_transcript",
-               "search_notes", "read_note", "read_skill", "geo_distance"}
+    reading = {"web_search", "read_page", "youtube_transcript", "search_notes",
+               "read_note", "read_skill", "geo_distance", "score_opportunity"}
     assert reading <= PARALLEL_SAFE_TOOLS
     assert "save_research" not in PARALLEL_SAFE_TOOLS
 

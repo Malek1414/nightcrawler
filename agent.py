@@ -217,8 +217,9 @@ def _save_research(config: Config, title: str, content: str) -> str:
         return f"Could not save the note: {e}"
 
 
-def _read_page(config: Config, evidence: _Evidence | None, url: str, raw: bool = False) -> str:
-    text = reach.read_page(url, tavily_key=config.tavily_api_key, raw=raw)
+def _read_page(config: Config, evidence: _Evidence | None, cache: reach.PageCache | None,
+               url: str, raw: bool = False) -> str:
+    text = reach.read_page(url, tavily_key=config.tavily_api_key, raw=raw, cache=cache)
     if evidence is not None:
         evidence.add(url)
     return text
@@ -236,11 +237,12 @@ def _geo_distance(user: prof.Profile | None, place: str, origin: str = "") -> st
 
 
 def _handlers(config: Config, user: prof.Profile | None = None,
-              evidence: _Evidence | None = None) -> dict:
+              evidence: _Evidence | None = None,
+              cache: reach.PageCache | None = None) -> dict:
     handlers = {
         "web_search": lambda query, num_results=5, domains="":
             reach.web_search(query, num_results, config.tavily_api_key, domains),
-        "read_page": lambda url, raw=False: _read_page(config, evidence, url, raw),
+        "read_page": lambda url, raw=False: _read_page(config, evidence, cache, url, raw),
         "youtube_transcript": lambda url: reach.youtube_transcript(url),
         "geo_distance": lambda place, origin="": _geo_distance(user, place, origin),
         "score_opportunity": lambda **kw: json.dumps(
@@ -298,7 +300,7 @@ def run(config: Config, task: str) -> str:
         return run_tool_loop(
             config, config.agent_model, system,
             [{"role": "user", "content": message}],
-            _tools(config), _handlers(config, user, evidence),
+            _tools(config), _handlers(config, user, evidence, reach.PageCache()),
             max_rounds=config.max_rounds, agent=AGENT, gate=evidence.gate,
         )
     except Exception:

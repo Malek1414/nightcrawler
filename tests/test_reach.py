@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from integrations import reach
 
 
@@ -34,7 +32,6 @@ def test_extract_data_blobs_finds_json_ld_and_state():
 
 
 def test_raw_mode_puts_embedded_data_first(monkeypatch):
-    reach._PAGE_CACHE.clear()
     monkeypatch.setattr(reach, "_fetch_direct", lambda url: (
         '<script type="application/ld+json">{"price":"0"}</script><p>Body</p>'))
     out = reach.read_page("https://ex.com/e", raw=True)
@@ -42,18 +39,47 @@ def test_raw_mode_puts_embedded_data_first(monkeypatch):
     assert '"price":"0"' in out
 
 
-def test_read_page_is_cached(monkeypatch):
-    reach._PAGE_CACHE.clear()
+def test_read_page_is_cached_per_run(monkeypatch):
+    calls = []
+    monkeypatch.setattr(reach, "_fetch_direct", lambda url: calls.append(url) or "<p>x</p>")
+    run1, run2 = reach.PageCache(), reach.PageCache()
+    reach.read_page("https://ex.com/c", raw=True, cache=run1)
+    reach.read_page("https://ex.com/c", raw=True, cache=run1)
+    assert calls == ["https://ex.com/c"]
+    # A new run must fetch fresh, so prices are never served from last week.
+    reach.read_page("https://ex.com/c", raw=True, cache=run2)
+    assert len(calls) == 2
+
+
+def test_read_page_without_cache_always_fetches(monkeypatch):
     calls = []
     monkeypatch.setattr(reach, "_fetch_direct", lambda url: calls.append(url) or "<p>x</p>")
     reach.read_page("https://ex.com/c", raw=True)
     reach.read_page("https://ex.com/c", raw=True)
-    assert calls == ["https://ex.com/c"]
+    assert len(calls) == 2
 
 
-def test_read_page_rejects_bare_domains():
-    with pytest.raises(ValueError, match="full URL"):
-        reach.read_page("example.com")
+def test_read_page_accepts_bare_domains(monkeypatch):
+    """Search snippets often show "example.org/events" without a scheme."""
+    seen = []
+    monkeypatch.setattr(reach, "_fetch_direct", lambda url: seen.append(url) or "<p>x</p>")
+    reach.read_page("example.org/events", raw=True)
+    assert seen == ["https://example.org/events"]
+
+
+def test_exa_is_retried_once(monkeypatch):
+    import httpx
+
+    monkeypatch.setattr(reach.time, "sleep", lambda s: None)
+    attempts = []
+
+    def flaky(query, n=5):
+        attempts.append(query)
+        if len(attempts) == 1:
+            raise httpx.HTTPError("502")
+        return "hits"
+    monkeypatch.setattr(reach, "exa_search", flaky)
+    assert reach.web_search("q") == "hits" and len(attempts) == 2
 
 
 def test_truncate_says_how_much_is_missing():

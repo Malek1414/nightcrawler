@@ -20,7 +20,8 @@ def _tool_use(id_, name, **inp):
 
 def _resp(*blocks, stop="end_turn"):
     return NS(content=list(blocks), stop_reason=stop,
-              usage=NS(input_tokens=10, output_tokens=5, cache_read_input_tokens=0))
+              usage=NS(input_tokens=10, output_tokens=5, cache_read_input_tokens=100,
+                       cache_creation_input_tokens=20))
 
 
 class FakeClient:
@@ -128,3 +129,33 @@ def test_usage_is_recorded(monkeypatch, live_config):
     _install(monkeypatch, [_resp(_text("ok"))])
     llm.run_tool_loop(live_config, "m", "s", [{"role": "user", "content": "q"}], agent="x")
     assert llm.USAGE["x:m"]["calls"] == 1 and llm.USAGE["x:m"]["in"] == 10
+    # input_tokens excludes cache reads and writes; the summary must add them.
+    assert "130 in" in llm.usage_summary()
+
+
+def test_max_tokens_is_not_returned_as_empty_answer(monkeypatch, live_config):
+    """A turn cut off while thinking has no text. It used to come back as ''."""
+    fake = _install(monkeypatch, [
+        _resp(NS(type="thinking", thinking=""), stop="max_tokens"),
+        _resp(_text("short answer")),
+    ])
+    out = llm.run_tool_loop(live_config, "m", "s", [{"role": "user", "content": "q"}])
+    assert out == "short answer"
+    # The truncated turn is dropped, not replayed.
+    roles = [m["role"] for m in fake.requests[1]["messages"]]
+    assert roles == ["user", "user"]
+
+
+def test_pause_turn_continues_the_same_assistant_turn(monkeypatch, live_config):
+    fake = _install(monkeypatch, [
+        _resp(_text("part 1 "), stop="pause_turn"),
+        _resp(_text("part 2 "), stop="pause_turn"),
+        _resp(_tool_use("a", "t"), stop="tool_use"),
+        _resp(_text("done")),
+    ])
+    out = llm.run_tool_loop(live_config, "m", "s", [{"role": "user", "content": "q"}],
+                            tools=[{}], handlers={"t": lambda: "r"})
+    assert out == "done"
+    roles = [m["role"] for m in fake.requests[-1]["messages"]]
+    assert roles == ["user", "assistant", "user"]     # one merged assistant turn
+    assert len(fake.requests[-1]["messages"][1]["content"]) == 3

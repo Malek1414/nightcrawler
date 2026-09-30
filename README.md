@@ -151,7 +151,7 @@ once the context gets large. Usage is printed to stderr after every run.
 | Repeat fetches | Every time | Cached per run |
 | Prompt caching | Timestamp in system prompt broke it | Stable system prompt, cache on |
 | Notes path check | `startswith` (sibling-folder bypass) | `is_relative_to` |
-| Tests | 29, wiring only | 63, including the tool loop against a fake Claude client |
+| Tests | 29, wiring only | 71, including the tool loop against a fake Claude client |
 
 ## Licence
 

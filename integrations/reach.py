@@ -29,6 +29,7 @@ import shutil
 import subprocess
 import tempfile
 import threading
+import time
 from pathlib import Path
 
 import httpx
@@ -44,10 +45,25 @@ _UA = "Mozilla/5.0 (compatible; Nightcrawler/1.0)"
 MAX_PAGE_CHARS = 20000
 MAX_SEARCH_CHARS = 8000
 
-# Per-process page cache. The same URL is often read twice in one run (once
-# to skim, once to cross-check); the second read should be free.
-_PAGE_CACHE: dict[tuple[str, bool], str] = {}
-_CACHE_LOCK = threading.Lock()
+
+
+class PageCache:
+    """Page cache for ONE run. The same URL is often read twice in a run (once
+    to skim, once to cross-check); the second read should be free. Scoped per
+    run on purpose: a process-wide cache would grow forever in a long-lived
+    bot and serve last week's prices as current."""
+
+    def __init__(self):
+        self._pages: dict[tuple[str, bool], str] = {}
+        self._lock = threading.Lock()
+
+    def get(self, key):
+        with self._lock:
+            return self._pages.get(key)
+
+    def put(self, key, value: str) -> None:
+        with self._lock:
+            self._pages[key] = value
 
 
 def _truncate(text: str, max_chars: int) -> str:
@@ -95,7 +111,7 @@ def _fetch_direct(url: str) -> str:
 
 
 def read_page(url: str, max_chars: int = MAX_PAGE_CHARS, tavily_key: str = "",
-              raw: bool = False) -> str:
+              raw: bool = False, cache: PageCache | None = None) -> str:
     """Fetch a page as text. Three stages, each only when the previous fails:
 
     1. Jina Reader (free, clean Markdown)
@@ -108,16 +124,17 @@ def read_page(url: str, max_chars: int = MAX_PAGE_CHARS, tavily_key: str = "",
     raw=True skips 1 and 2 and returns the embedded data blobs first, then the
     stripped text. That is the route for scraping structured data.
     """
+    url = url.strip()
     if not url.startswith(("http://", "https://")):
-        raise ValueError(f"Not a full URL (needs http:// or https://): {url}")
+        # Search snippets often show bare domains ("example.org/events").
+        url = "https://" + url
     key = (url, raw)
-    with _CACHE_LOCK:
-        if key in _PAGE_CACHE:
-            return _PAGE_CACHE[key]
+    if cache is not None and (hit := cache.get(key)) is not None:
+        return hit
 
     result = _read_page_uncached(url, max_chars, tavily_key, raw)
-    with _CACHE_LOCK:
-        _PAGE_CACHE[key] = result
+    if cache is not None:
+        cache.put(key, result)
     return result
 
 
@@ -256,7 +273,13 @@ def web_search(query: str, num_results: int = 5, tavily_key: str = "",
     sites = _domain_list(domains)
     if sites:
         query = f"{query} " + " OR ".join(f"site:{d}" for d in sites)
-    return exa_search(query, num_results)
+    try:
+        return exa_search(query, num_results)
+    except httpx.HTTPError as e:
+        # The free endpoint fails intermittently; one retry recovers most of it.
+        logger.warning("Exa search failed (%s), retrying once", e)
+        time.sleep(1.5)
+        return exa_search(query, num_results)
 
 
 # ---------------------------------------------------------- YouTube transcripts
