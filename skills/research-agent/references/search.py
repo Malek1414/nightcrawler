@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Such-Start für den research-agent (nur stdlib).
 
-Eine Suche, mehrere Suchmaschinen (Tavily, Exa, Serper, Hound-Metasuche, Jina): fällt eine aus (kein Key, 401, 429,
+Eine Suche, mehrere Suchmaschinen (Tavily, Exa, Serper, DonSeTch, Hound, Jina): fällt eine aus (kein Key, 401, 429,
 Kontingent leer), geht es automatisch zur nächsten. Mit --fan fragt es alle
 verfügbaren gleichzeitig und führt die Treffer zusammen (mehr Ergebnisse).
 Spart den geteilten WebSearch-Topf der Harness.
@@ -21,7 +21,7 @@ Optionen:
   --site / --exclude       Domains ein- bzw. ausschliessen (wiederholbar)
   --lang de|en|...  Sprache/Land der Ergebnisse, wo die Suchmaschine es kann
   --news            Nachrichten statt allgemeiner Web-Suche (Tavily, Serper)
-  --engine NAME     nur diese: tavily, exa, exa-api, serper, hound, jina
+  --engine NAME     nur diese: tavily, exa, exa-api, serper, donsetch, hound, jina
   --fan             alle verfügbaren parallel statt Fallback-Kette
   --seen DATEI      gemeinsame Fundliste einer Agent-Welle: markiert [neu] oder
                     [bekannt] und hängt neue URLs an (dateigesperrt, parallel sicher)
@@ -49,7 +49,7 @@ KEY_FILES = [
 ]
 KEY_NAMES = ["TAVILY_API_KEY", "EXA_API_KEY", "SERPER_API_KEY", "JINA_API_KEY"]
 # Reihenfolge der Fallback-Kette: erst die mit Filtern und Kontingent, dann keyless.
-CHAIN = ["tavily", "exa-api", "serper", "exa", "hound", "jina"]
+CHAIN = ["tavily", "exa-api", "serper", "exa", "donsetch", "hound", "jina"]
 LANG_COUNTRY = {"de": "germany", "en": "united states", "fr": "france",
                 "es": "spain", "it": "italy", "nl": "netherlands"}
 TIMEOUT = 40
@@ -223,6 +223,40 @@ def s_hound(q, o, keys):
                 "hound") for x in r.get("results", [])]
 
 
+def _mcporter(tool, args, output):
+    try:
+        p = subprocess.run(["mcporter", "call", tool, "--args", json.dumps(args),
+                            "--output", output], cwd=os.path.expanduser("~"),
+                           capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        raise EngineDown(type(e).__name__)
+    if p.returncode != 0:
+        raise EngineDown((p.stderr or p.stdout).strip()[:120] or "Fehler")
+    return p.stdout
+
+
+def s_donsetch(q, o, keys):
+    """Keyless Metasuche über DonSeTch (gepinnt 4.4.1, stdio über mcporter).
+    Kann keine Domain-/Zeitfilter, darum stehen site:/Jahr im Suchtext und
+    host_ok filtert danach. Text liefert Titel, JSON die URLs (2. Aufruf cached)."""
+    qq = q + "".join(f" site:{d}" for d in o.site[:1])
+    args = {"query": qq, "max_results": min(o.n, 12),
+            "intent": "news" if o.news else "auto"}
+    text = _mcporter("donsetch.web_search", args, "text")
+    try:
+        urls = {r["rank"]: r["url"] for r in
+                json.loads(_mcporter("donsetch.web_search", args, "json"))["results"]}
+    except (json.JSONDecodeError, KeyError) as e:
+        raise EngineDown(type(e).__name__)
+    hits, lines = [], text.splitlines()
+    for i, line in enumerate(lines):
+        m = re.match(r"^(\d+)\. \S+ · (.*) : \S+ · \d+ index famil", line)
+        if m and int(m.group(1)) in urls:
+            snip = lines[i + 1].strip() if i + 1 < len(lines) else ""
+            hits.append(hit(m.group(2), urls[int(m.group(1))], snip, "", "donsetch"))
+    return hits
+
+
 def s_jina(q, o, keys):
     key = keys.get("JINA_API_KEY") or _missing("JINA_API_KEY")
     qq = q + "".join(f" site:{d}" for d in o.site[:1])
@@ -239,7 +273,8 @@ def _missing(name):
 
 
 ENGINES = {"tavily": s_tavily, "exa-api": s_exa_api, "serper": s_serper,
-           "exa": s_exa_mcp, "hound": s_hound, "jina": s_jina}
+           "exa": s_exa_mcp, "donsetch": s_donsetch, "hound": s_hound,
+           "jina": s_jina}
 
 
 # ---- Ablauf ----

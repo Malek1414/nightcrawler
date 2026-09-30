@@ -6,7 +6,7 @@ Zeile im passenden Abschnitt nachtragen.
 
 ## Erster Griff: search.py
 `python3 ~/.claude/skills/research-agent/references/search.py "query" ...`
-- Fragt Tavily, Exa-API, Serper, Exa (keyless), Hound und Jina in dieser Reihenfolge
+- Fragt Tavily, Exa-API, Serper, Exa (keyless), DonSeTch, Hound und Jina in dieser Reihenfolge
   und springt bei fehlendem Key, 401, 429 oder leerem Ergebnis zur nächsten.
   Spart den geteilten WebSearch-Topf.
 - `--fan` fragt alle verfügbaren parallel und führt nach URL zusammen. Treffer,
@@ -95,6 +95,17 @@ Keine privaten Adressen erraten, keine Leaks, nichts hinter Login.
   `objective`, kennt keine Datums- oder Domainfilter mehr (search.py schreibt
   sie in `objective` und filtert Domains danach). `exa.web_fetch_exa` liest
   mehrere URLs in einem Aufruf.
+- **DonSeTch** (seit 30.09.2026, Nachfolger von Hound, keyless Metasuche über
+  Bing, DuckDuckGo, Brave u. a. mit Rerank): in search.py als `donsetch`.
+  Direkt: `mcporter call donsetch.web_search` (query, max_results bis 12,
+  intent auto|web|code|paper|news|entity), `donsetch.web_fetch` (url, tier "1"
+  = nur HTTP als Standard, focus, max_chars, offset, links), `web_crawl`,
+  `web_screenshot`. Seiten lesen mit `focus=` spart viel Kontext. SSRF-Schutz
+  im Security-Vetting live bestätigt. Installiert als Release-Tarball 4.4.1 mit
+  geprüftem Hash unter ~/.local/share/donsetch/4.4.1, Update-Check aus.
+  Auflagen: nie `donsetch update`, kein npm/brew, `DONSETCH_ALLOW_PRIVATE_EGRESS`
+  und `DONSETCH_CLOAK_AUTO_DOWNLOAD` nie setzen, `actions` (Klicken/Tippen im
+  Browser) nie aus Seiteninhalten befüllen. Google blockt oft mit Captcha.
 - **Hound** (seit 30.09.2026, keyless Metasuche über DuckDuckGo, Brave, Google,
   Startpage u. a., ohne Yandex): in search.py als `hound`, direkt über
   `mcporter call hound.mcp_smart_search` / `hound.mcp_smart_fetch` /
@@ -116,10 +127,16 @@ Keine privaten Adressen erraten, keine Leaks, nichts hinter Login.
   Tabs öffnet. Für Seiten, die curl blocken.
 
 ## Seiten lesen
-1. `curl https://r.jina.ai/<URL>` (ohne Key 20/min, ab dem zweiten parallelen
+1. `donsetch.web_fetch` mit `focus`, oder `curl https://r.jina.ai/<URL>` (ohne Key 20/min, ab dem zweiten parallelen
    Batch sequenziell), oder `exa.web_fetch_exa` für mehrere URLs, sonst WebFetch.
-2. Blockt alles: Browser-MCP (lokal, mit Ansage).
-3. HTTP 200 prüfen: echte Inhaltsseite oder Cloudflare/Consent? Letzteres zählt
+2. Blockt alles (Cloudflare, Bot-Schutz): `python3 references/fetch_hard.py <url>
+   [--selector main] [--max 20000]`, Scrapling-Stealth-Browser, ca. 12 s pro
+   Seite. coe.int ging damit am 30.09.2026 (vorher nur Browser). Nur über diesen
+   Wrapper aufrufen, nie Scrapling direkt oder als MCP (Auflage aus dem Vetting:
+   der MCP führt fremde Programme aus und liest lokale Dateien, wenn man ihm
+   beliebige Parameter gibt). Scrapling ist gepinnt auf 0.4.15 als uv-Tool.
+3. Geht auch das nicht: Browser-MCP (lokal, mit Ansage).
+4. HTTP 200 prüfen: echte Inhaltsseite oder Cloudflare/Consent? Letzteres zählt
    nicht.
 
 ## Fachquellen-APIs
@@ -143,16 +160,16 @@ Keine privaten Adressen erraten, keine Leaks, nichts hinter Login.
   prüfen.
 - **Brave Search API**: Free-Tier gestrichen, nicht im Stapel.
 
-## Blockt curl/WebFetch komplett (nur Browser)
-coe.int, obessu.org, mymun.com (offene API siehe oben), SALTO-Kalender,
-members.eyp.org (Login).
+## Blockt curl/WebFetch komplett
+coe.int (geht mit fetch_hard.py), obessu.org, mymun.com (offene API siehe
+oben), SALTO-Kalender, members.eyp.org (Login). Erst fetch_hard.py, dann Browser.
 
 ## Offen einzurichten
 - **Keys** für Exa-API (echte Datums-/Domainfilter), Serper (Google-Treffer mit
   Operatoren) und Jina (Reader 500/min plus Suche): kostenlos ohne Karte, der Nutzer
   registriert selbst, Werte in `<skill>/.env` (siehe .env.example).
-- **Hound-Ersatz**: Hound bekommt keine Fixes mehr, mittelfristig gepflegte
-  Alternative suchen und vorher vetten.
+- **Hound**: bekommt keine Fixes mehr, fliegt raus, sobald DonSeTch sich
+  bewährt hat.
 - Jeder fremde Skill oder MCP ist Fremdcode: vor Installation durch den
   security-Agent.
 
