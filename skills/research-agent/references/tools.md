@@ -177,3 +177,18 @@ oben), SALTO-Kalender, members.eyp.org (Login). Erst fetch_hard.py, dann Browser
 Zahlen, Preise und alles, worauf eine Entscheidung gebaut wird, über
 `references/sources.py` führen und vor "fertig" mit `sources.py verify --numbers`
 gegenprüfen.
+
+## Gemessen (Such-Eval)
+Eine zweite Messung neben dem Verify-Gate: welche Engines die bekannten guten
+Quellen wirklich in die Top 30 holen. Goldliste aus 266 geprüften Ziel-Links,
+neun Aufgaben. Die Harness liegt nicht in diesem Repo, weil sie eine eigene
+Goldliste braucht.
+- Ein Startdurchgang mit drei Queries trifft 18 % der Gold-Domains in den Top 30.
+- Query-Vielfalt ist der Hebel, nicht das Ranking: drei normale plus drei
+  Nischen-Queries (Anführungszeichen, "call for applications", site:,
+  Bewerbungsschluss) heben das auf 23 %. Reciprocal Rank Fusion statt
+  Engine-Zählung bringt keinen messbaren Unterschied.
+- Einzeln liegen die Engines nah beieinander (Tavily 15 %, Serper 12 %, zwei
+  weitere um 10 bis 12 %), alle zusammen 18 %. Deshalb lohnt `--fan`.
+- Exa keyless lief 27 von 27 Abrufen in HTTP 429 (Freilimit weg). Ohne
+  EXA_API_KEY fällt Exa praktisch aus.

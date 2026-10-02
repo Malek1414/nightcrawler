@@ -71,6 +71,8 @@ The first run showed the plain gate only proves that a cited source holds *some*
 
 For comparison: a benchmark of 14 LLMs as deep-research agents found that even the strongest keep cited links valid above 94 % but get the cited facts right only 39 to 77 % of the time ([Cited but Not Verified](https://arxiv.org/abs/2605.06635), 2026). None of the open-source research agents reviewed for this repo (gpt-researcher, STORM, open_deep_research, node-DeepResearch, smolagents) blocks a report on an unbacked citation at runtime.
 
+A second, retrieval-side measurement (a search eval, not shipped here because it needs your own gold set of known-good links) found that recall is driven by query variety, not ranking: three plain queries surface 18 % of the gold domains in the top 30, and adding three niche phrasings (quoted terms, `"call for applications"`, `site:`, a deadline word) lifts that to 23 %, while reciprocal rank fusion over the same engines makes no measurable difference. Per engine the hits stay close (Tavily 15 %, Serper 12 %, two others around 10 to 12 %), so the chain fans several engines out at once (`--fan`) instead of betting on one. This is why the skill pushes query variety rather than clever re-ranking.
+
 ## Security
 
 Threat model and mitigations are in [SECURITY.md](SECURITY.md): fetched pages are untrusted, the stealth browser cannot reach internal addresses, keys never leave the environment.
