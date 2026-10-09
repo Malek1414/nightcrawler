@@ -1,160 +1,129 @@
-# Nightcrawler
+# claude-skill-research-agent
 
-A research and scraping agent that knows who it works for. It takes a
-question, searches the web, actually reads pages, pulls structured data out of
-them, and returns a sourced answer. When the question is about opportunities,
-such as events, jobs, grants, clients, or rooms full of investors, it ranks
-them for you: payoff against what it really costs you to get there, from
-where you live, within your budget.
+[![tests](https://github.com/sami-mag07/claude-skill-research-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/sami-mag07/claude-skill-research-agent/actions/workflows/tests.yml)
+![python](https://img.shields.io/badge/python-3.10%2B-blue)
+![dependencies](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![license](https://img.shields.io/badge/license-MIT-lightgrey)
 
-> Setup, step by step: **[SETUP.md](SETUP.md)**. It's written as a recipe you
-> can also hand to a coding agent.
+A research skill for Claude Code that treats web research like engineering: several search engines behind one interface, parallel agent waves that never duplicate each other's work, and a verify gate that refuses to call a report done while any citation lacks a verbatim quote from its source.
 
-Built on [scraping-agent-skeleton](https://github.com/sami-mag07/scraping-agent-skeleton)
-by sami-mag07 (MIT). See [What changed](#what-changed-from-the-skeleton).
+Zero runtime dependencies. Every script is Python stdlib, so there is nothing to `pip install` and nothing to audit beyond the files in this repo.
 
----
+## Why
 
-## How it works
+Agent-driven research fails in three predictable ways:
 
-**It starts from you, not the topic.** A local `profile.toml` holds your home
-base, goals, interests, budget, and travel limit. The agent reads it before
-searching. From that it decides what's worth looking for, so it doesn't just
-scrape everything on the subject.
+1. **One search backend.** The harness search tool hits a shared quota, a rate limit, or simply misses the niche page. The agent then concludes "nothing exists".
+2. **Parallel agents step on each other.** Five subagents on one topic return the same ten URLs five times.
+3. **Citations that do not hold.** The report cites `[3]`, but the sentence it supports is nowhere on page 3.
 
-**It runs a search fan, not a single search.** Every question sends out at
-least three queries at once: the task's own words, a synonym or technical
-term, and the phrasing a local or official source would use. The agent keeps
-the track that brings fresh, official sources.
-
-**It reads pages instead of collecting snippets.** At least 6 pages from at
-least 4 domains are read in full. The code checks this: an answer below the
-bar is sent back once, and the model must keep reading or say why fewer
-sources are enough.
-
-**Cross-checking is mandatory.** Every number, date, price, and deadline is
-checked against a second, independent source. Anything resting on one source
-is marked `[unverified]`. When sources disagree, both values appear in the
-answer.
-
-**Ranking is arithmetic, not vibes.** For opportunities, the model supplies
-what it found (fee, place, deadline) and its estimates (payoff, fit, whether
-investors attend). `score_opportunity` then calculates distance, estimated
-round-trip travel and lodging, and budget flags, and returns a 0 to 100 score
-with the breakdown. The agent also looks for the cheapest way in: free tiers,
-volunteer or speaker slots, discounts, and travel grants.
-
----
+Each script here removes one of those failure modes.
 
 ## Architecture
 
-```
-main.py              CLI, or your own caller (bot, web backend, another agent)
-   |
-agent.py             system prompt + tools + handlers + evidence gate
-   |
-core/llm.py          Claude tool loop: parallel reads, context editing,
-   |                 quality gate, graceful stop at the round limit
-   +-- core/skills.py           loads skills/*.md on demand
-   +-- integrations/reach.py    search, read pages (text or raw data), YouTube
-   +-- integrations/profile.py  your profile, geocoding, opportunity scoring
-   +-- integrations/notes.py    read and write a Markdown folder
-```
-
-| Tool | What it does |
-|---|---|
-| `web_search` | Tavily (optional key), falls back to the free Exa endpoint. Optional domain filter |
-| `read_page` | Jina Reader, then Tavily Extract, then a direct fetch. `raw=true` returns JSON-LD / `__NEXT_DATA__` blobs first. Cached per run |
-| `youtube_transcript` | Subtitles via yt-dlp |
-| `geo_distance` | Distance from your home (or any origin) to a place, via OpenStreetMap |
-| `score_opportunity` | 0 to 100 score with cost breakdown, budget, distance, and deadline flags |
-| `search_notes` / `read_note` / `save_research` | Your notes folder, only with `NOTES_DIR` |
-| `read_skill` | Load a method on demand |
-
-## Skills
-
-| Skill | When |
-|---|---|
-| `opportunity-scout` | Events, meetups, jobs, gigs, grants, competitions, investor-heavy rooms, ranked for you |
-| `lead-research` | Find leads and filter them against your target-audience note |
-| `web-scraping` | Data rather than prose: open datasets, JSON in the HTML, endpoints, pagination |
-| `site-index` | All URLs of a domain at once: robots.txt, sitemaps, Wayback index |
-| `archive-research` | Dead, blocked, or changed pages via the Internet Archive |
-| `search-operators` | Narrow down when the search fan brings only noise |
-| `deep-research` | Break the question apart, keep a source register, look for the counter-thesis |
-| `citations` | Full source citations, quotation vs. paraphrase |
-
-New skill = new `.md` file in `skills/` with `name`, `description`, and
-`agents: research` in the frontmatter. No code.
-
----
-
-## Quick start
-
-```bash
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-cp .env.example .env                              # add ANTHROPIC_API_KEY, or run `ant auth login`
-cp examples/profile.example.toml profile.toml     # then make it yours
-
-.venv/bin/python main.py "Pitch competitions and demo days I can reach before December"
+```mermaid
+flowchart LR
+    A[researcher agent<br/>waves of up to 5] -->|queries| S[search.py]
+    S -->|fallback or --fan| E1[Tavily] & E2[Exa API] & E3[Serper] & E4[keyless engines<br/>via MCP]
+    E1 & E2 & E3 & E4 --> M[merge<br/>canonical URL, rank by<br/>number of engines]
+    M --> SEEN[(seen.txt<br/>flock, shared per wave)]
+    M --> R[read pages<br/>WebFetch, Jina reader]
+    R -->|blocked by bot wall| F[fetch_hard.py<br/>stealth browser,<br/>SSRF guard]
+    R & F --> L[sources.py<br/>ledger + verbatim quotes]
+    L --> G{verify gate}
+    G -->|every citation backed| OK[report]
+    G -->|missing quote| X[exit 1: not done]
 ```
 
-```bash
-.venv/bin/python main.py --profile       # what the agent knows about you
-.venv/bin/python main.py --skills        # available methods
-.venv/bin/python main.py --prompt        # the assembled system prompt
-.venv/bin/python main.py --mock "test"   # run without an API call
-.venv/bin/python -m pytest               # tests, no network and no key needed
-```
+| Component | Lines | What it guarantees |
+|---|---:|---|
+| `references/search.py` | ~400 | A query always gets answered by the first engine that works. With `--fan`, all engines run in parallel and URLs are merged after canonicalisation (scheme, `www.`, trailing slash, tracking parameters); hits found by several engines rank first. Domain filters are re-applied locally because not every engine honours them. |
+| `--seen <file>` | | An `flock`-guarded list shared by one agent wave. Each hit is tagged `[new]` or `[known]`, so agent 4 sees what agents 1 to 3 already found. |
+| `references/sources.py` | ~170 | Numbered ledger `[sNN]`. `quote` only stores a quote if it appears verbatim in the fetched page (whitespace and typographic quotes normalised). `verify` exits non-zero until every citation in the draft is backed; `--check-urls` re-fetches and re-checks the quote live. |
+| `references/fetch_hard.py` | ~80 | Last-resort reader for Cloudflare-protected pages. Resolves the host first and refuses loopback, private, link-local and metadata addresses, and passes only a fixed set of flags to the browser. |
+| `references/tools.md` | | Everything that goes stale: channel limits, fallback chains, public data APIs, search techniques for niches and people. One line added per lesson learned. |
+| `agents/researcher.md` | | A subagent with a fresh context that writes sources to disk as it goes and returns only an index, so the main context stays small. |
 
-To embed it, call `agent.run(config, task)` and you get the finished text back.
-The call blocks, so in async code wrap it in `asyncio.to_thread()`.
+## Design decisions
 
----
+- **Freedom over a step list.** The skill describes capabilities and tools, not a 15-step procedure. An earlier version with numbered rules produced rigid, shallow runs. The only hard rule left: a subagent never spawns subagents (one uncapped run went from 3 to 149 agents).
+- **Fallback chain order is cost-aware.** Engines with real date and domain filters and a quota go first, keyless engines last. `--status` shows what is available without printing keys.
+- **stdlib only.** Research tooling runs with network access and API keys. Every third-party dependency is attack surface, so the scripts use `urllib`, `concurrent.futures` and `fcntl`, nothing else.
+- **Fetched content is data, never instructions.** The agent prompt says so explicitly, and `fetch_hard.py` never lets page content or the model choose browser flags.
+- **Keys** come from the environment, then from a local `.env` (gitignored). Inline comments in `.env` are stripped, a bug that once sent a comment as an API key.
 
-## Costs
+## Evals
 
-Claude is the only paid part. The default is `claude-opus-5-5` at `EFFORT=high`.
-For routine runs, `claude-sonnet-5` or `EFFORT=medium` costs much less. The
-system prompt is byte-stable between runs (the timestamp goes into the user
-message), so prompt caching works. Old tool results are cleared server-side
-once the context gets large. Usage is printed to stderr after every run.
+`evals/gate_mutations.py` builds a correct three-source report served from a local HTTP server, then tries seven ways of faking a citation and records whether the gate rejects each one. Deterministic, no keys, runs in CI.
 
-## Privacy and safety
-
-- Secrets live only in `.env`. `profile.toml` is also gitignored.
-- The only personal data that leaves your machine: your home city name, sent
-  to OpenStreetMap once for coordinates. With `LOCATION_SOURCE=ip`, your
-  public IP also goes to ip-api.com. That setting is opt-in.
-- Note paths are checked by path components, so `../../.ssh/id_rsa` and
-  sibling folders like `/notes-evil` are rejected. `save_research` only
-  creates new files.
-- Tool errors go back to the model as text, so it can react to a broken fetch.
-- The skills say it explicitly: respect robots.txt, don't get around bot
-  protection, don't hammer one domain, and don't collect personal data the
-  task doesn't need.
-
-## What changed from the skeleton
-
-| Area | Skeleton | Nightcrawler |
+| Mutation | `verify` | `verify --numbers` |
 |---|---|---|
-| Model | OpenAI `gpt-4o` | Claude (`claude-opus-5-5`), adaptive thinking, server-side refusal fallback |
-| Language | German prompts and skills | English throughout |
-| User context | Name, language, timezone | Profile with home, goals, budget, travel limits, and scoring weights; optional IP location |
-| Ranking | None | `score_opportunity`: all-in cost, distance, budget, and deadline flags |
-| Evidence rules | Prompt only | Checked in code before an answer is accepted |
-| Long runs | Could overflow context and crash into a weaker fallback | Server-side context editing clears old tool results |
-| Round limit | Threw the research away ("make the task smaller") | Writes up what it has, marks gaps |
-| Page limit | 7,000 chars, silent about what was lost | 20,000 chars, and says how much was cut |
-| Structured data | Only visible if Jina failed | `read_page(raw=true)` extracts JSON-LD and framework state |
-| Repeat fetches | Every time | Cached per run |
-| Prompt caching | Timestamp in system prompt broke it | Stable system prompt, cache on |
-| Notes path check | `startswith` (sibling-folder bypass) | `is_relative_to` |
-| Tests | 29, wiring only | 71, including the tool loop against a fake Claude client |
+| fabricated citation [s04] with no source | caught | caught |
+| quote that is not on the page | caught | caught |
+| source added but never quoted | caught | caught |
+| source page changed after quoting (`--check-urls`) | caught | caught |
+| source page removed (`--check-urls`) | caught | caught |
+| two citations swapped | missed | caught |
+| claim changed, citation kept | missed | caught |
+| **total** | **5/7** | **7/7** |
 
-## Licence
+The first run showed the plain gate only proves that a cited source holds *some* verbatim quote, not that the sentence matches it. `--numbers` closes the two gaps for quantitative claims: every number in a cited sentence must appear in a quote of a source that sentence cites. A reworded non-numeric claim ("pays generously") still passes; that needs a semantic check (see Roadmap).
 
-MIT, see [LICENSE](LICENSE). The skeleton this is built on is MIT, by sami-mag07.
-Some skills build on prior work by others, each credited in the `source:` line
-of the frontmatter.
+For comparison: a benchmark of 14 LLMs as deep-research agents found that even the strongest keep cited links valid above 94 % but get the cited facts right only 39 to 77 % of the time ([Cited but Not Verified](https://arxiv.org/abs/2605.06635), 2026). None of the open-source research agents reviewed for this repo (gpt-researcher, STORM, open_deep_research, node-DeepResearch, smolagents) blocks a report on an unbacked citation at runtime.
+
+A second, retrieval-side measurement (a search eval, not shipped here because it needs your own gold set of known-good links) found that recall is driven by query variety, not ranking: three plain queries surface 18 % of the gold domains in the top 30, and adding three niche phrasings (quoted terms, `"call for applications"`, `site:`, a deadline word) lifts that to 23 %, while reciprocal rank fusion over the same engines makes no measurable difference. Per engine the hits stay close (Tavily 15 %, Serper 12 %, two others around 10 to 12 %), so the chain fans several engines out at once (`--fan`) instead of betting on one. This is why the skill pushes query variety rather than clever re-ranking.
+
+## Security
+
+Threat model and mitigations are in [SECURITY.md](SECURITY.md): fetched pages are untrusted, the stealth browser cannot reach internal addresses, keys never leave the environment.
+
+## Tests
+
+```
+python -m unittest discover -s tests -v
+```
+
+19 tests, no network, no keys, about one second. CI runs them on Linux and macOS with Python 3.10, 3.12 and 3.13. Covered: URL canonicalisation, merge ranking, fallback order and error logging, parallel fan-out surviving dead engines, `.env` parsing, eight concurrent writers on one `seen.txt` producing zero duplicates, the full `add / quote / verify` CLI flow including a fabricated quote being rejected, and the SSRF guard against loopback, RFC 1918, IPv6 loopback, cloud metadata and non-HTTP schemes.
+
+The concurrency test earned its place on day one: on Linux it caught `seen.txt` being unlocked before the buffered write reached the file, so parallel agents recorded the same URL twice. macOS never showed it.
+
+## Setup
+
+1. Copy `skills/research-agent/` to `~/.claude/skills/research-agent/`.
+2. Copy `agents/researcher.md` to `~/.claude/agents/researcher.md`. It becomes visible in the next session.
+3. Optional: copy `skills/research-agent/.env.example` to `.env` and add the free-tier keys you have (Tavily, Exa, Serper, Jina). Missing keys are skipped.
+4. Optional: `mcporter` with keyless search MCP servers for the last links of the chain, and `scrapling` as a uv tool for `fetch_hard.py`.
+
+## Usage
+
+```
+search.py "student startup grant" "Gründungsstipendium Schüler" --since 90d --lang de --n 15
+search.py "accessibility hackathon" --fan --seen research/a11y/seen.txt --json
+search.py --status
+
+sources.py add https://example.org/call            # -> [s01]
+sources.py quote s01 --from page.txt --text "Deadline: 1 October"
+sources.py verify draft.md --check-urls --numbers  # exit 1 until every [sNN] is backed
+```
+
+The skill triggers on phrases like "research", "find out", "compare", "market scan", or manually via `/research-agent`. For broad scans, spawn `researcher` agents in waves of at most five with one shared `seen.txt`.
+
+## Limits
+
+- The skill text and agent prompt are in German; the scripts and this README are in English.
+- `fetch_hard.py` is slow (10 to 30 seconds per page) and meant for the pages nothing else can read.
+- The verify gate proves that a quote exists on a page, not that the claim built on it is a fair reading. That part stays with the reviewer.
+
+## Roadmap
+
+Measured before built. Each item lands only with a number that shows it helps.
+
+1. **Answer-quality eval.** 40 questions: 15 from FRAMES (Apache-2.0), 10 from SimpleQA (MIT), 10 time-sensitive questions from real failures, 5 unanswerable ones where the right answer is "unknown". Three arms: harness search only, this chain, this chain without the gate. Replay fixtures for CI, live runs nightly.
+2. **Rank fusion.** Replace "found by N engines" with reciprocal rank fusion plus a domain prior, weights tuned on the eval rather than guessed.
+3. **Engine bandit.** Thompson sampling over engines per query type, reward = ledger hits per cost.
+4. **Semantic claim check.** A per-claim judge (or an NLI model as an optional extra) for the claims `--numbers` cannot see.
+5. **Self-improving loop.** Change one thing in the skill, run the eval, keep it only if the score rises; eval files read-only to the agent to prevent reward hacking.
+
+## License
+
+MIT
