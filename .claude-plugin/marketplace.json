@@ -1,0 +1,16 @@
+{
+  "name": "nightcrawler",
+  "owner": {
+    "name": "Malek Hassan"
+  },
+  "metadata": {
+    "description": "Nightcrawler research agent for Claude Code"
+  },
+  "plugins": [
+    {
+      "name": "nightcrawler",
+      "source": "./",
+      "description": "/nightcrawler <task>: context-aware research agent with a citation verify gate."
+    }
+  ]
+}

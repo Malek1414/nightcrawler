@@ -1,0 +1,9 @@
+{
+  "name": "nightcrawler",
+  "version": "0.1.0",
+  "description": "Nightcrawler: /nightcrawler <task> runs a context-aware research agent with multi-engine search, parallel researcher waves sharing one seen-list, and a verify gate that blocks unbacked citations.",
+  "author": { "name": "Malek Hassan", "email": "malek.korashi@gmail.com" },
+  "repository": "https://github.com/Malek1414/nightcrawler",
+  "license": "MIT",
+  "keywords": ["research", "web-search", "agents", "citations"]
+}

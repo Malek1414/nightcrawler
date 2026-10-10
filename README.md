@@ -94,6 +94,17 @@ The concurrency test earned its place on day one: on Linux it caught `seen.txt` 
 3. Optional: copy `skills/research-agent/.env.example` to `.env` and add the free-tier keys you have (Tavily, Exa, Serper, Jina). Missing keys are skipped.
 4. Optional: `mcporter` with keyless search MCP servers for the last links of the chain, and `scrapling` as a uv tool for `fetch_hard.py`.
 
+## Plugin: `/nightcrawler <task>`
+
+The repo is also a Claude Code plugin. Install it once:
+
+```
+claude plugin marketplace add /path/to/nightcrawler
+claude plugin install nightcrawler@nightcrawler
+```
+
+Then `/nightcrawler <task> [--quick | --deep]` opens a dated run folder (`scripts/new_run.py`), reads `profile.toml` if present, sends a wave of `nightcrawler:researcher` agents sharing one `seen.txt`, and writes `<runs>/<slug>-<date>.md` with the verify gate run over every numeric claim. Runs go to `$NIGHTCRAWLER_RUNS`, else `./runs` when started inside the repo, else `~/nightcrawler-runs`; `$NIGHTCRAWLER_PROFILE` points at a profile elsewhere.
+
 ## Usage
 
 ```
