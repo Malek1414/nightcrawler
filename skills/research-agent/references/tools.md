@@ -95,7 +95,7 @@ Keine privaten Adressen erraten, keine Leaks, nichts hinter Login.
   `objective`, kennt keine Datums- oder Domainfilter mehr (search.py schreibt
   sie in `objective` und filtert Domains danach). `exa.web_fetch_exa` liest
   mehrere URLs in einem Aufruf.
-- **DonSeTch** (seit 30.09.2026, Nachfolger von Hound, keyless Metasuche über
+- **DonSeTch** (13.10.2026 auf Maleks Mac: 4.4.1 nach ~/.local/share/donsetch/4.4.1, sha256 f7b42ac1… gegen GitHub-Digest geprüft, in mcporter registriert mit DONSETCH_NO_UPDATE_CHECK=1. search.py ruft jetzt das Binary direkt mit `search --json` auf, weil Text- und JSON-MCP-Aufruf getrennt sortiert waren und Titel falschen URLs zuordneten.) (seit 30.09.2026, Nachfolger von Hound, keyless Metasuche über
   Bing, DuckDuckGo, Brave u. a. mit Rerank): in search.py als `donsetch`.
   Direkt: `mcporter call donsetch.web_search` (query, max_results bis 12,
   intent auto|web|code|paper|news|entity), `donsetch.web_fetch` (url, tier "1"
