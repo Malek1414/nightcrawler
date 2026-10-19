@@ -1,0 +1,20 @@
+# Nutcracker adapter: how the Nutcracker hub (github.com/Malek1414/nutcracker) reaches nightcrawler.
+# Research runs headless through Claude Code with the same tools the /nightcrawler command allows.
+name: nightcrawler
+description: Research agent on Claude (events, jobs, grants, clients, investors); reports land in runs/
+connect:
+  cli: {}
+actions:
+  research:
+    run: [claude, -p, "/nightcrawler:nightcrawler {task}", --output-format, json, --no-session-persistence, --allowedTools, Bash, Read, Write, Glob, Grep, WebSearch, WebFetch, Agent]
+    async: true
+    timeout: 3600
+    description: "Run a full nightcrawler research job. The report lands in runs/ and fires nightcrawler.report.created"
+    params: { task: "what to research, in plain words" }
+  new_run:
+    run: [python3, scripts/new_run.py, "{task}"]
+    description: "Create the working folder for a run and return its paths"
+    params: { task: "what the run is about" }
+events:
+  - files: "runs/*.md"
+    type: "nightcrawler.report.{kind}"
