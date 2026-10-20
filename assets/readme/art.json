@@ -1,0 +1,51 @@
+{
+  "_generator": "https://github.com/Malek1414/Malek1414/blob/main/tools/readme_art.py",
+  "title": "Nightcrawler",
+  "tagline": "Research in agent waves, with a quote behind every citation.",
+  "chips": ["/nightcrawler", "multi-engine search", "agent waves", "*verify gate"],
+  "footer_left": "Malek Hassan · Berlin · 2026",
+  "footer_right": "Python stdlib · Claude Code plugin",
+  "alt": "Nightcrawler: a pixel night owl under a crescent moon, sweeping a magnifying glass and blinking",
+  "accent": "lens",
+  "colors": {
+    "lens": ["#8f8dff", "#4b47d6"],
+    "feather": ["#b07a4f", "#8a5530"],
+    "shade": ["#7a5235", "#4f2f17"],
+    "cream": ["#f3e2c3", "#dcbc8c"],
+    "gold": ["#ffcc33", "#d99a00"],
+    "eye": ["#0d1117", "#1f2328"]
+  },
+  "legend": {
+    "B": ["feather", "body"], "D": ["shade", "body"], "F": ["cream", "body"], "K": ["gold", "body"], "Y": ["gold", "body"], "R": ["shade", "body"],
+    "O": ["gold", "eyes"], "E": ["eye", "eyes"],
+    "L": ["lens", "lens"], "T": ["lens", "lens"], "S": ["cream", "lens"],
+    "M": ["gold", "moon"]
+  },
+  "motions": {"lens": "rock", "eyes": "blink", "moon": "glow"},
+  "origins": {"lens": "5% 95%"},
+  "sprite": [
+    "...........................MM.",
+    "..........................MM..",
+    "..DD............DD........MM..",
+    "..DBB..........BBD.........MM.",
+    "..BBBBBBBBBBBBBBBB............",
+    "..BBFFFFBBBBFFFFBB....LLLLL...",
+    "..BFOOOOFBBFOOOOFB...LL...LL..",
+    "..BFOOEEFBBFOOEEFB..LLSS...LL.",
+    "..BFOOEEFKKFOOEEFB..L.S.....L.",
+    "..BFOOOOFKKFOOOOFB..L.......L.",
+    "..BBFFFFBBBBFFFFBB..L.......L.",
+    "..BBBBBBBBBBBBBBBB..LL.....LL.",
+    ".DBBBBFFFFFFFFBBDD...LL...LL..",
+    ".DDBBFFFFFFFFFFBDD..TTLLLLL...",
+    ".DDBBFDFDFFDFDFBDD.TT.........",
+    ".DDBBFFDFFFFDFFBDDTT..........",
+    ".DDBBFFFFFFFFFFBDDDD..........",
+    ".DDBBFDFDFFDFDFBDDD...........",
+    ".DDBBFFDFFFFDFFBDD............",
+    "..DDBFFFFFFFFFFBD.............",
+    "....BBBBBBBBBBB...............",
+    "......YY...YY.................",
+    "RRRRRRRRRRRRRRRRRRRR.........."
+  ]
+}
